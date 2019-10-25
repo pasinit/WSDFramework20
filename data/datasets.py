@@ -1,10 +1,14 @@
+import random
+import xml.etree.ElementTree as ET
 from collections import OrderedDict, Counter
 
-import torch
+import numpy as np
+from data_io.batchers import TextDataset, ResettableIterator, ResettableListIterator, get_batcher
 from torch.utils.data.dataset import Dataset
-import xml.etree.ElementTree as ET
-
 from torchtext.vocab import Vocab
+from transformers import PreTrainedTokenizer, AutoTokenizer
+from typing import Iterable, Iterator
+from utils.huggingface_utils import encode_word_pieces
 
 
 def get_pos_from_key(key):
@@ -22,6 +26,19 @@ def get_pos_from_key(key):
         return "a"
     else:
         return "r"
+
+
+def get_simplified_pos(long_pos):
+    long_pos = long_pos.lower()
+    if long_pos.startswith("n") or long_pos.startswith("propn"):
+        return "n"
+    elif long_pos.startswith("adj"):
+        return "a"
+    elif long_pos.startswith("adv"):
+        return "r"
+    elif long_pos.startswith("v"):
+        return "v"
+    return "o"
 
 
 def load_wn_key2id_map(path):
@@ -88,15 +105,50 @@ class Vocabulary(Vocab):
         return Vocabulary(labels)
 
 
-class WSDXmlInMemoryDataset(Dataset):
-    def __init__(self, xml_path, key_file, vocabulary: Vocabulary, key2wnid_path=None, key2bnid_path=None):
+class WSDXmlInMemoryDataset(Iterator):
+    def __init__(self, xml_path, key_file, vocabulary: Vocabulary, device, batch_size, key2wnid_path=None,
+                 key2bnid_path=None, shuffle=True):
+
         self.vocabulary = vocabulary
+        self.batch_size = batch_size
+        self.device = device
         key2gold = self.load_key_file(key_file, key2wnid_path, key2bnid_path)
         self.iwltc = self.load_xml(xml_path, key2gold)  # id word lemma tag class
+        self.all_sentences = list()
+        for sentence in self.iwltc:
+            self.all_sentences.append([tok[1] for tok in sentence])
         self.len_ = len(self.iwltc)
+        # iterator = ResettableListIterator(all_sentences, shuffle=shuffle)
+        # super().__init__(iterator, model_name, tokeniser, token_limit, device, batch_size,
+        #                  max_sentences_in_memory=self.len_)
+        # self.fill_buffer()
+        self.indices = list(range(len(self.iwltc)))
+        self.shuffle = shuffle
+        if shuffle:
+            random.shuffle(self.indices)
 
-    def __getitem__(self, item):
-        return self.iwltc[item]
+    def __next__(self):
+        if len(self.indices) == 0:
+            self.indices = list(range(len(self.iwltc)))
+            if self.shuffle:
+                random.shuffle(self.indices)
+            raise StopIteration()
+
+        words = list()
+        ids = list()
+        lemmas = list()
+        poss = list()
+        gold = list()
+        for _ in range(self.batch_size):
+            if len(self.indices) == 0:
+                return words, ids, lemmas, poss, gold
+            i = self.indices.pop()
+            ids.append([x[0] for x in self.iwltc[i]])
+            lemmas.append([x[2] for x in self.iwltc[i]])
+            poss.append([x[3] for x in self.iwltc[i]])
+            gold.append([x[4] for x in self.iwltc[i]])
+            words.append(self.all_sentences[i])
+        return words, ids, lemmas, poss, gold
 
     def __len__(self):
         return self.len_
@@ -142,12 +194,14 @@ class WSDXmlInMemoryDataset(Dataset):
 
 
 if __name__ == "__main__":
+    device = "cuda"
+    batch_size = 32
     vocabulary = Vocabulary.vocabulary_from_gold_key_file(
         "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt")
     dataset = WSDXmlInMemoryDataset(
-        "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Evaluation_Datasets/ALL/ALL.data.xml",
-        "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Evaluation_Datasets/ALL/ALL.gold.key.txt", vocabulary)
-    # key2bnid_path="/home/tommaso/dev/PycharmProjects/wsd_raganato_onesec/resources/all_bn_wn_keys.txt")
-    # key2wnid_path="/opt/WordNet-3.0/dict/index.sense")
+        "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml",
+        "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", vocabulary,
+        device, batch_size)
 
-    print(dataset[10])
+    for batch in dataset:
+        print(batch)

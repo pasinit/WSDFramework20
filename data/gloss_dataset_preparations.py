@@ -5,6 +5,7 @@ from xml.etree import ElementTree as ET
 
 from tqdm import tqdm
 from xml.dom import minidom
+import _pickle as pkl
 
 
 def parse_babelnet_glosses2(input_file, output_file, language):
@@ -29,13 +30,16 @@ def parse_babelnet_glosses2(input_file, output_file, language):
                     key2gold[token_xml] = token_xml.attrib["id"]
                 token_xml.attrib.update({"lemma": lemma, "pos": pos})
                 token_xml.text = word
-    tree = ET.ElementTree(root)
+    # tree = ET.ElementTree(root)
+    with open(output_file + ".pkl", "wb") as writer:
+        pkl.dump(root, writer)
     xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent="   ")
     with open(output_file, "w") as f:
         f.write(xmlstr)
 
 
 def tokenize_glosses_and_merge_annotations(input_file, language):
+    # stanfordnlp.download(language)
     pipeline = stanfordnlp.Pipeline(processors="tokenize,pos,lemma", use_gpu=True, lang=language)
     all_structured_lines = dict()
     with open(input_file) as lines:
@@ -106,6 +110,6 @@ def tokenize_glosses_and_merge_annotations(input_file, language):
 
 
 if __name__ == "__main__":
-    parse_babelnet_glosses2("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_it.txt",
-                            "/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_it.parsed.txt",
-                            "it")
+    parse_babelnet_glosses2("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.txt",
+                            "/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.txt",
+                            "fr")
