@@ -1,41 +1,36 @@
 from collections import Counter
 
 import stanfordnlp
-from xml.etree import ElementTree as ET
-
 from tqdm import tqdm
-from xml.dom import minidom
 import _pickle as pkl
 
 
 def parse_babelnet_glosses2(input_file, output_file, language):
     all_structured_lines = tokenize_glosses_and_merge_annotations(input_file, language)
 
-    root = ET.Element("corpus")
+    root = etree.Element("corpus")
     root.attrib.update({"lang": language, "source": "babelnet-glosses-%s" % language})
-
     key2gold = dict()
     for doc_id, structured_glosses in all_structured_lines.items():
-        document_xml = ET.SubElement(root, "text")
+        document_xml = etree.SubElement(root, "text")
         document_xml.attrib.update({"id": doc_id})
         for sentence_id, (structured_tokens, source) in enumerate(structured_glosses):
-            sentence_xml = ET.SubElement(document_xml, "sentence")
+            sentence_xml = etree.SubElement(document_xml, "sentence")
             sentence_xml.attrib["id"] = "%s.s%03d" % (doc_id, sentence_id)
             for token_idx, word, lemma, pos, annotation in structured_tokens:
                 if annotation is None:
-                    token_xml = ET.SubElement(sentence_xml, "wf")
+                    token_xml = etree.SubElement(sentence_xml, "wf")
                 else:
-                    token_xml = ET.SubElement(sentence_xml, "instance")
+                    token_xml = etree.SubElement(sentence_xml, "instance")
                     token_xml.attrib["id"] = doc_id + ".s%03d.t%03d" % (sentence_id, token_idx)
-                    key2gold[token_xml] = token_xml.attrib["id"]
-                token_xml.attrib.update({"lemma": lemma, "pos": pos})
+                    key2gold[token_xml.attrib["id"]] = annotation["bnid"]
+                token_xml.attrib.update({"lemma": lemma if lemma is not None else word, "pos": pos})
                 token_xml.text = word
-    # tree = ET.ElementTree(root)
-    with open(output_file + ".pkl", "wb") as writer:
-        pkl.dump(root, writer)
-    xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent="   ")
-    with open(output_file, "w") as f:
-        f.write(xmlstr)
+    et = etree.ElementTree(root)
+    et.write(output_file, pretty_print=True)
+    with open(output_file.replace(".xml", ".gold.key.txt"), "w") as writer:
+        for key, gold in key2gold.items():
+            writer.write(key + "\t" + gold + "\n")
 
 
 def tokenize_glosses_and_merge_annotations(input_file, language):
@@ -104,12 +99,31 @@ def tokenize_glosses_and_merge_annotations(input_file, language):
             l.append((indexed_merged_tokens, source))
             all_structured_lines[doc_id] = l
             counter += 1
-            # if counter >= 10:
+            # if counter >= 100:
             #     break
     return all_structured_lines
 
-
+from lxml import etree
 if __name__ == "__main__":
-    parse_babelnet_glosses2("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.txt",
-                            "/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.txt",
-                            "fr")
+    parse_babelnet_glosses2("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_it.txt",
+                            "/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_it.parsed.xml",
+                            "it")
+    # # lang = "de"
+    # # with open("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.txt.pkl", "rb") as reader:
+    # #     xml = pkl.load(reader)
+    # #     print("xml loaded")
+    # #     for sentence in xml.findall("text/sentence"):
+    # #         for tok in sentence:
+    # #             if tok.attrib["lemma"] is None:
+    # #                 tok.attrib["lemma"] = tok.text
+    # #     xml.attrib["lang"] = lang
+    # #     # xml = ET.parse("/home/tommaso/Documents/data/WSD_Evaluation_Framework/Evaluation_Datasets/semeval2015/semeval2015.data.xml")
+    # # et = ElementTree.ElementTree(xml)
+    # # # for e in et.iter():
+    # # #     print()
+    # # et.write("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.temp.xml")
+    # # del et
+    # # del xml
+    # et = etree.parse("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.xml")
+    # et.write("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.pretty.xml", pretty_print=True)
+

@@ -1,6 +1,6 @@
-from data.data_structures import Lemma2Synsets
-from data.datasets import Vocabulary
-from models.neural_wsd_models import TransformerFFWSDModel
+from src.data.data_structures import Lemma2Synsets
+from src.data.datasets import Vocabulary
+from src.models.neural_wsd_models import TransformerFFWSDModel
 
 if __name__ == "__main__":
     lemma2synsetpath = "/media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt"

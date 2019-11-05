@@ -1,0 +1,130 @@
+import _pickle as pkl
+import os
+import socket
+from argparse import ArgumentParser
+
+import torch
+import wandb
+import yaml
+from allennlp.data.iterators import BucketIterator
+from allennlp.data.token_indexers import PretrainedBertIndexer
+from allennlp.training.callbacks import Checkpoint
+from allennlp.training.checkpointer import Checkpointer
+from allennlp_mods.callback_trainer import MyCallbackTrainer
+from allennlp_mods.callbacks import ValidateAndWrite, WanDBTrainingCallback
+from torch import optim
+
+from src.data.datasets import Vocabulary, AllenWSDDatasetReader
+from src.models.neural_wsd_models import AllenWSDModel, WSDOutputWriter
+import numpy as np
+torch.random.manual_seed(42)
+np.random.seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+def build_outpath_subdirs(path):
+    if not os.path.exists(path):
+        os.mkdir(path)
+    try:
+        os.mkdir(os.path.join(path, "checkpoints"))
+    except:
+        pass
+    try:
+        os.mkdir(os.path.join(path, "predictions"))
+    except:
+        pass
+
+
+def main(args):
+    with open(args.config) as reader:
+        config = yaml.load(reader, Loader=yaml.FullLoader)
+    data_config = config["data"]
+    model_config = config["model"]
+    training_config = config["training"]
+    outpath = data_config["outpath"]
+    test_data_root = data_config["test_data_root"]
+    train_data_root = data_config["train_data_root"]
+    test_names = data_config["test_names"]
+    lang = data_config["lang"]
+    label_type = data_config["label_type"]
+    max_sentence_token = data_config["max_sentence_token"]
+    max_segments_in_batch = data_config["max_segments_in_batch"]
+    sliding_window = data_config["sliding_window"]
+    device = model_config["device"]
+    model_name = model_config["model_name"]
+    learning_rate = float(model_config["learning_rate"])
+    num_epochs = training_config["num_epochs"]
+    wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, lang])
+    device_int = 0 if device == "cuda" else -1
+    test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
+    training_path = "{}/SemCor/semcor.data.xml".format(train_data_root)
+    dev_path = "{}/semeval2007/semeval2007.data.xml".format(test_data_root)
+    outpath = os.path.join(outpath, model_name)
+    build_outpath_subdirs(outpath)
+    token_indexer = PretrainedBertIndexer(
+        pretrained_model=model_name,
+        do_lowercase=False,
+        truncate_long_sequences=False
+    )
+
+    if label_type == "wnoffsets":
+        dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
+    elif label_type == "wnkeys":
+        dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
+    elif label_type == "bnids":
+        dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
+    else:
+        raise RuntimeError(
+            "{} label_type has not been recognised, ensure it is one of the following: {wnoffsets, wnkeys, bnids}")
+
+    reader, lemma2synsets, label_vocab = dataset_builder({"tokens": token_indexer},
+                                                         sliding_window=sliding_window,
+                                                         max_sentence_token=max_sentence_token)
+    model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
+                                                   Vocabulary())
+    train_ds = reader.read(training_path)
+    tests_dss = [reader.read(test_path) for test_path in test_paths]
+    iterator = BucketIterator(
+        biggest_batch_first=True,
+        sorting_keys=[("tokens", "num_tokens")],
+        maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
+        cache_instances=True,
+        # instances_per_epoch=32
+    )
+    valid_iterator = BucketIterator(
+        maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
+        # biggest_batch_first=True,
+        sorting_keys=[("tokens", "num_tokens")]
+    )
+    iterator.index_with(Vocabulary())
+    writers = [WSDOutputWriter(os.path.join(outpath, "predictions", name + ".predictions.txt"), label_vocab.itos) for
+               name
+               in test_names]
+    callbacks = [ValidateAndWrite(data, valid_iterator, output_writer=writer, name=name, wandb=True) for
+                 name, data, writer in zip(
+            test_names, tests_dss, writers)]
+    callbacks.append(WanDBTrainingCallback())
+    callbacks.append(Checkpoint(Checkpointer(os.path.join(outpath, "checkpoints"))))
+
+    trainer = MyCallbackTrainer(model=model,
+                                optimizer=optim.Adam(model.parameters(), lr=learning_rate),
+                                iterator=iterator,
+                                cuda_device=device_int,
+                                num_epochs=num_epochs,
+                                training_data=train_ds,
+                                callbacks=callbacks,
+                                shuffle=True
+                                )
+    trainer.train()
+    with open(os.path.join(outpath, "last_model.th"), "wb") as writer:
+        torch.save(model.state_dict(), writer)
+    with open(os.path.join(outpath, "label_vocab.pkl"), "wb") as writer:
+        pkl.dump(label_vocab, writer)
+
+
+# os.environ["WANDB_MODE"] = "dryrun"
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--config", default="config/config.yaml")
+    args = parser.parse_args()
+    main(args)
