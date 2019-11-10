@@ -46,6 +46,7 @@ def main(args):
     train_data_root = data_config["train_data_root"]
     test_names = data_config["test_names"]
     lang = data_config["lang"]
+    gold_id_separator = data_config["gold_id_separator"]
     label_type = data_config["label_type"]
     max_sentence_token = data_config["max_sentence_token"]
     max_segments_in_batch = data_config["max_segments_in_batch"]
@@ -57,7 +58,7 @@ def main(args):
     wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, lang])
     device_int = 0 if device == "cuda" else -1
     test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
-    training_path = "{}/SemCor/semcor.data.xml".format(train_data_root)
+    training_path = train_data_root#"{}/SemCor/semcor.data.xml".format(train_data_root)
     dev_path = "{}/semeval2007/semeval2007.data.xml".format(test_data_root)
     outpath = os.path.join(outpath, model_name)
     build_outpath_subdirs(outpath)
@@ -79,7 +80,8 @@ def main(args):
 
     reader, lemma2synsets, label_vocab = dataset_builder({"tokens": token_indexer},
                                                          sliding_window=sliding_window,
-                                                         max_sentence_token=max_sentence_token)
+                                                         max_sentence_token=max_sentence_token,
+                                                         gold_id_separator=gold_id_separator)
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
                                                    Vocabulary())
     train_ds = reader.read(training_path)

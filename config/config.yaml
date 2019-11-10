@@ -2,7 +2,8 @@ data:
   lang: en
 #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
-  train_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+  train_data_root: data/training_data/semcor+princeton_glosses_manual.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+  gold_id_separator: " "
   outpath: data/out/
   label_type: wnoffsets
   test_names:
@@ -19,7 +20,7 @@ data:
   max_segments_in_batch: 2000
 
 model:
-  device: cuda
+  device: cpu
   model_name: bert-large-cased
   learning_rate: 1e-4
 
