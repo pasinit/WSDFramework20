@@ -1,7 +1,10 @@
-#!/usr/bin/env bash
+#!/usr/bin/zsh
+export PYTHONPATH=.
 ## MERGE SemCor + onesec_en
+export PATH=/home/tommaso/anaconda3/bin:$PATH
+echo `which python3`
 echo "SemCor + onesec_en"
-python src/data/data_preparation.py \
+python3 src/data/data_preparation.py \
 merge \
 --dataset_paths /home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml data/onesec+semcor/onesec_en_to_add.data.xml \
 --lang en \
