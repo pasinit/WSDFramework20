@@ -11,11 +11,11 @@ def get_bnoffset2wnoffset():
 
 
 def get_wnkeys2bnoffset():
-    return __load_reverse_multimap("resources/mappings/all_bn_wn_keys.txt")
+    return __load_reverse_multimap("resources/mappings/all_bn_wn_keys.txt", key_transformer=lambda x: x.replace("%5", "%3"))
 
 
 def get_bnoffset2wnkeys():
-    return __load_multimap("resources/mappings/all_bn_wn_key.txt")
+    return __load_multimap("resources/mappings/all_bn_wn_key.txt", value_transformer=lambda x : x.replace("%5", "%3"))
 
 
 def get_wnoffset2wnkeys():
@@ -24,8 +24,7 @@ def get_wnoffset2wnkeys():
         for line in lines:
             fields = line.strip().split(" ")
             keys = offset2keys.get(fields[1], set())
-            pos = get_pos_from_key(fields[0])
-            keys.add(fields[0] + pos)
+            keys.add(fields[0].replace("%5", "%3"))
             offset2keys[fields[1]] = keys
     return offset2keys
 
@@ -35,12 +34,13 @@ def get_wnkeys2wnoffset():
     with open("/opt/WordNet-3.0/dict/index.sense") as lines:
         for line in lines:
             fields = line.strip().split(" ")
-            pos = get_pos_from_key(fields[0])
-            key2offset[fields[0]] = fields[1] +  pos
+            key = fields[0].replace("%5", "%3")
+            pos = get_pos_from_key(key)
+            key2offset[key] = fields[1] +  pos
     return key2offset
 
 
-def __load_reverse_multimap(path):
+def __load_reverse_multimap(path, key_transformer=lambda x: x, value_transformer=lambda x:x):
     sensekey2bnoffset = dict()
     with open(path) as lines:
         for line in lines:
@@ -48,18 +48,20 @@ def __load_reverse_multimap(path):
             bnid = fields[0]
             for key in fields[1:]:
                 offsets = sensekey2bnoffset.get(key, set())
-                offsets.add(bnid)
-                sensekey2bnoffset[key] = offsets
+                offsets.add(value_transformer(bnid))
+                sensekey2bnoffset[key_transformer(key)] = offsets
+    for k, v in sensekey2bnoffset.items():
+        sensekey2bnoffset[k] = list(v)
     return sensekey2bnoffset
 
 
-def __load_multimap(path):
+def __load_multimap(path, key_transformer=lambda x: x, value_transformer=lambda x:x):
     bnoffset2wnkeys = dict()
     with open(path) as lines:
         for line in lines:
             fields = line.strip().split("\t")
             bnoffset = fields[0]
-            bnoffset2wnkeys[bnoffset] = fields[1:]
+            bnoffset2wnkeys[key_transformer(bnoffset)] = [value_transformer(x) for x in fields[1:]]
     return bnoffset2wnkeys
 
 

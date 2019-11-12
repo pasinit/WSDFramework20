@@ -1,14 +1,16 @@
 data:
   langs:
-    - en
-  #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
+   - en
+   - es
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
+    - data/training_data/translated_semcor/semcor.es.data.xml
     - data/training_data/semcor+glosses/semcor+princeton_glosses_manual.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
-  sense_inventory: wnoffsets
-  label_from: wnoffsets
+
   gold_id_separator: " "
-  outpath: data/out/
+  outpath: data/out/en+es/
+  label_from: training
+  sense_inventory: babelnet
   test_names:
     - senseval2
     - senseval3
@@ -17,6 +19,8 @@ data:
     - semeval2010
     - semeval2013
     - semeval2015
+    - semeval2015_es
+    - semeval2013_es
     - ALL
   max_sentence_token: 30
   sliding_window: 15
@@ -24,7 +28,7 @@ data:
 
 model:
   device: cuda
-  model_name: bert-large-cased
+  model_name: bert-base-multilingual-cased
   learning_rate: 1e-4
 
 training:

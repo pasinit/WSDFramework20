@@ -43,7 +43,7 @@ class Lemma2Synsets(dict):
             tokenid = instance.attrib["id"]
             lemmapos = instance.attrib["lemma"] + "#" + get_simplified_pos(instance.attrib["pos"])
             lemmapos2gold[lemmapos] = lemmapos2gold.get(lemmapos, set())
-            lemmapos2gold[lemmapos].add(key2gold[tokenid])
+            lemmapos2gold[lemmapos].add(key2gold[tokenid].replace("%5", "%3"))
         for lemmapos, golds in lemmapos2gold.items():
             lemmapos2gold[lemmapos] = set(filter(lambda x: x is not None, [gold_transformer(g) for g in golds]))
         return Lemma2Synsets(data=lemmapos2gold)
@@ -64,16 +64,17 @@ class Lemma2Synsets(dict):
         return Lemma2Synsets(data=lemmapos2gold)
 
     @staticmethod
-    def from_bn_mapping():
+    def from_bn_mapping(langs=("en")):
         lemmapos2gold = dict()
-        with open("resources/lexeme_to_synsets/lexeme_to_bnoffsets.en.txt") as lines:
-            for line in lines:
-                fields = line.strip().split("\t")
-                lemmapos = fields[0]
-                synset = fields[1]
-                synsets = lemmapos2gold.get(lemmapos, set())
-                synsets.add(synset)
-                lemmapos2gold[lemmapos] = synsets
+        for lang in langs:
+            with open("resources/lexeme_to_synsets/lexeme_to_bnoffsets.{}.txt".format(lang)) as lines:
+                for line in lines:
+                    fields = line.strip().split("\t")
+                    lemmapos = fields[0]
+                    synset = fields[1]
+                    synsets = lemmapos2gold.get(lemmapos, set())
+                    synsets.add(synset)
+                    lemmapos2gold[lemmapos] = synsets
         return Lemma2Synsets(data=lemmapos2gold)
 
     @staticmethod

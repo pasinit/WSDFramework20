@@ -172,7 +172,7 @@ class WSDOutputWriter(OutputWriter):
         for i in range(len(predictions)):  # p, l in zip(predictions, labels):
             p, l = predictions[i], "\t".join(golds[i])
             id = ids[i]
-            out_str = (id if ids is not None else "") + "\t" + self.labeldict[p] + "\t" +l + "\n"
+            out_str = (id if ids is not None else "") + "\t" + self.labeldict[p] + "\t" + l + "\n"
             self.writer.write(out_str)
         self.writer.flush()
 
@@ -226,6 +226,7 @@ class AllenWSDModel(Model):
         self.projection = nn.Linear(self.word_embeddings.get_output_dim(), out_sz)
         self.loss = nn.CrossEntropyLoss()
         self.merge_fun = merge_fun
+        self.label_vocab = label_vocab
         self.lemma2classes = lemmapos2classes
         self.accuracy = WSDF1(label_vocab)
 
@@ -256,19 +257,19 @@ class AllenWSDModel(Model):
     def forward(self, tokens: Dict[str, torch.Tensor],
                 ids: Any, words, lemmapos, label_ids: torch.Tensor,
                 possible_labels, labeled_token_indices, labeled_lemmapos, labels) -> torch.Tensor:
-        mask = (label_ids != 0.0).float().to(tokens["tokens"].device)
+        mask = (label_ids != self.label_vocab["<pad>"]).float().to(tokens["tokens"].device)
         with torch.no_grad():
             embeddings = self.word_embeddings(tokens)
         embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
         embeddings = embeddings[mask != 0]
-        labeled_logits = self.projection(embeddings) #* mask.unsqueeze(-1)
+        labeled_logits = self.projection(embeddings)  # * mask.unsqueeze(-1)
         target_labels = label_ids[mask != 0]
         labels = [x for y in labels for x in y]
         possible_labels = [x for y in possible_labels for x in y]
         possible_classes_mask = torch.zeros_like(labeled_logits)  # .to(class_logits.device)
         for i, ith_lp in enumerate(possible_labels):
             possible_classes_mask[i][possible_labels[i]] = 1
-            possible_classes_mask[:,0] = 0
+            possible_classes_mask[:, 0] = 0
         labeled_logits = labeled_logits * possible_classes_mask
         predictions = None
         if not self.training:
@@ -283,8 +284,6 @@ class AllenWSDModel(Model):
                   "labels": labels, "all_labels": label_ids, "str_labels": labels,
                   "ids": [[x for x in i if x is not None] for i in ids], "loss":
                       self.loss(labeled_logits, target_labels)}
-
-
 
         return output
 
