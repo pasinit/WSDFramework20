@@ -1,11 +1,21 @@
 data:
+<<<<<<< HEAD
   lang: en
 #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
   test_data_root: /home/tommaso/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root: data/training_data/semcor+princeton_glosses_manual.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+=======
+  langs:
+    - en
+  #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
+  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+  train_data_root:
+    - data/training_data/semcor+glosses/semcor+princeton_glosses_manual.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+  sense_inventory: wnoffsets
+  label_from: wnoffsets
+>>>>>>> 47dad65f1e6cc0430edb10482c917d0b29acbc4e
   gold_id_separator: " "
   outpath: data/out/
-  label_type: wnoffsets
   test_names:
     - senseval2
     - senseval3

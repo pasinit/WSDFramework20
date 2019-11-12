@@ -45,9 +45,10 @@ def main(args):
     test_data_root = data_config["test_data_root"]
     train_data_root = data_config["train_data_root"]
     test_names = data_config["test_names"]
-    lang = data_config["lang"]
+    langs = data_config["langs"]
+    sense_inventory = data_config["sense_inventory"]
     gold_id_separator = data_config["gold_id_separator"]
-    label_type = data_config["label_type"]
+    label_from = data_config["label_from"]
     max_sentence_token = data_config["max_sentence_token"]
     max_segments_in_batch = data_config["max_segments_in_batch"]
     sliding_window = data_config["sliding_window"]
@@ -55,11 +56,10 @@ def main(args):
     model_name = model_config["model_name"]
     learning_rate = float(model_config["learning_rate"])
     num_epochs = training_config["num_epochs"]
-    wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, lang, "semcor+glosses_man"])
+    wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, ",".join(langs)])
     device_int = 0 if device == "cuda" else -1
     test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
-    training_path = train_data_root#"{}/SemCor/semcor.data.xml".format(train_data_root)
-    dev_path = "{}/semeval2007/semeval2007.data.xml".format(test_data_root)
+    training_paths = train_data_root#"{}/SemCor/semcor.data.xml".format(train_data_root)
     outpath = os.path.join(outpath, model_name)
     build_outpath_subdirs(outpath)
     token_indexer = PretrainedBertIndexer(
@@ -68,23 +68,26 @@ def main(args):
         truncate_long_sequences=False
     )
 
-    if label_type == "wnoffsets":
+    if label_from == "wnoffsets":
         dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
-    elif label_type == "wnkeys":
+    elif label_from == "wnkeys":
         dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
-    elif label_type == "bnids":
+    elif label_from == "bnids":
         dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
+    elif label_from == "training":
+        dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
     else:
         raise RuntimeError(
-            "{} label_type has not been recognised, ensure it is one of the following: {wnoffsets, wnkeys, bnids}")
+            "{} label_from has not been recognised, ensure it is one of the following: {wnoffsets, wnkeys, bnids}")
 
     reader, lemma2synsets, label_vocab = dataset_builder({"tokens": token_indexer},
                                                          sliding_window=sliding_window,
                                                          max_sentence_token=max_sentence_token,
-                                                         gold_id_separator=gold_id_separator)
+                                                         gold_id_separator=gold_id_separator, langs=langs,
+                                                         training_data_xmls = training_paths, sense_inventory=sense_inventory)
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
                                                    Vocabulary())
-    train_ds = reader.read(training_path)
+    train_ds = reader.read(training_paths)
     tests_dss = [reader.read(test_path) for test_path in test_paths]
     iterator = BucketIterator(
         biggest_batch_first=True,
@@ -127,6 +130,6 @@ def main(args):
 #os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", default="config/config.yaml")
+    parser.add_argument("--config", default="config/en+es_config.yaml")
     args = parser.parse_args()
     main(args)

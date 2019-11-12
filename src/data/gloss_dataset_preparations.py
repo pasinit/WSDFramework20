@@ -191,22 +191,22 @@ def convert_princeton_tagged_glosses_format(xml_root, out_path, sentence_tag="de
 
 
 if __name__ == "__main__":
-    convert_princeton_tagged_glosses_format("data/princeton_tagged_glosses/merged/",
-                                            "data/princeton_tagged_glosses/semeval2013_format/princeton_glosses.manual.data.xml",
-                                            valid_annotation_type={"man"})
-    convert_princeton_tagged_glosses_format("data/princeton_tagged_glosses/merged/",
-                                            "data/princeton_tagged_glosses/semeval2013_format/princeton_glosses.all.data.xml",
-                                            valid_annotation_type={"man", "auto"})
+    # convert_princeton_tagged_glosses_format("data/princeton_tagged_glosses/merged/",
+    #                                         "data/princeton_tagged_glosses/semeval2013_format/princeton_glosses.manual.data.xml",
+    #                                         valid_annotation_type={"man"})
+    # convert_princeton_tagged_glosses_format("data/princeton_tagged_glosses/merged/",
+    #                                         "data/princeton_tagged_glosses/semeval2013_format/princeton_glosses.all.data.xml",
+    #                                         valid_annotation_type={"man", "auto"})
     # convert_princeton_tagged_glosses_format("data/princeton_tagged_glosses/merged/",
     #                                         "data/princeton_tagged_glosses/semeval2013_format/princeton_examples.manual.xml",
     #                                         valid_annotation_type={"man"}, sentence_tag="ex")
-    convert_princeton_tagged_glosses_format("data/princeton_tagged_glosses/merged/",
-                                            "data/princeton_tagged_glosses/semeval2013_format/princeton_examples.all.data.xml",
-                                            valid_annotation_type={"man", "auto"}, sentence_tag="ex")
+    # convert_princeton_tagged_glosses_format("data/princeton_tagged_glosses/merged/",
+    #                                         "data/princeton_tagged_glosses/semeval2013_format/princeton_examples.all.data.xml",
+    #                                         valid_annotation_type={"man", "auto"}, sentence_tag="ex")
 
-    # parse_babelnet_glosses2("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_it.txt",
-    #                         "/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_it.parsed.xml",
-    #                         "it")
+    parse_babelnet_glosses2("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_en.txt",
+                            "/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_en.parsed.xml",
+                            "it")
     # # lang = "de"
     # # with open("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.txt.pkl", "rb") as reader:
     # #     xml = pkl.load(reader)
