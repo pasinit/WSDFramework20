@@ -4,6 +4,7 @@ import stanfordnlp
 from tqdm import tqdm
 import _pickle as pkl
 from lxml import etree
+import spacy
 
 from src.data.dataset_utils import get_simplified_pos, get_pos_from_key, get_universal_pos
 
@@ -36,9 +37,39 @@ def parse_babelnet_glosses2(input_file, output_file, language):
             writer.write(key + "\t" + gold + "\n")
 
 
+def get_model_by_language(language):
+    if language != "en":
+        return "{}_core_news_sm".format(language)
+    else:
+        return "en_core_web_sm"
+
+
+def get_pipeline_by_language(language):
+    if language == "en":
+        return spacy.load(get_model_by_language(language), disable=["parser", "ner"])
+    else:
+        return stanfordnlp.Pipeline(processors="tokenize,pos,lemma", use_gpu=True, lang=language)
+
+
+def parse_text(pipeline, to_parse):
+    tokens = []
+    if type(pipeline) == stanfordnlp.Pipeline:
+        sentences = pipeline(to_parse).sentences
+        for sentence in sentences:
+            for t in sentence.tokens:
+                t_words = t.words
+                wlta = [(tw.text, tw.lemma, tw.upos, None) for tw in t_words]
+                tokens.extend(wlta)
+    else:
+        doc = pipeline(to_parse)
+        tokens.append([(tw.text, tw.lemma_, tw.pos_, None) for tw in doc])
+    return tokens
+
 def tokenize_glosses_and_merge_annotations(input_file, language):
-    #stanfordnlp.download(language)
-    pipeline = stanfordnlp.Pipeline(processors="tokenize,pos,lemma", use_gpu=True, lang=language)
+    # stanfordnlp.download(language)
+    # pipeline = stanfordnlp.Pipeline(processors="tokenize,pos,lemma", use_gpu=True, lang=language)
+    pipeline = get_pipeline_by_language(language)
+
     all_structured_lines = dict()
     with open(input_file) as lines:
         counter = 0
@@ -70,29 +101,17 @@ def tokenize_glosses_and_merge_annotations(input_file, language):
             last_start = 0
             for annotation_token, annotation in annotations:
                 to_parse = gloss[last_start:annotation["start"]].strip()
-                if len(to_parse) == 0:
-                    sentences = []
-                else:
-                    sentences = pipeline(to_parse).sentences
-                for sentence in sentences:
-                    for t in sentence.tokens:
-                        t_words = t.words
-                        wlta = [(tw.text, tw.lemma, tw.upos, None) for tw in t_words]
-                        tokens.extend(wlta)
+                if len(to_parse) > 0:
+                    wlta = parse_text(pipeline, to_parse)
+                tokens.extend(wlta)
                 aux = annotation_token.replace(" ", "_")
                 tokens.append((aux, aux, "NOUN", annotation))
                 last_start = annotation["end"] + 1
             if last_start < len(gloss):
                 to_parse = gloss[last_start:].strip()
-                if len(to_parse) == 0:
-                    parsed_toks = []
-                else:
-                    sentences = pipeline(to_parse).sentences
-                for sentence in sentences:
-                    for t in sentence.tokens:
-                        t_words = t.words
-                        wlta = [(tw.text, tw.lemma, tw.upos, None) for tw in t_words]
-                        tokens.extend(wlta)
+                if len(to_parse) > 0:
+                    tagged_text = parse_text(pipeline, to_parse)
+                    tokens.extend(tagged_text)
 
             indexed_merged_tokens = list()
             for i, mt in enumerate(tokens):
@@ -108,7 +127,6 @@ def tokenize_glosses_and_merge_annotations(input_file, language):
 
 
 def get_annotations(parent, wf, token_id, annotation_type):
-
     golds = list()
     for id_xml in wf:
         if id_xml.attrib["sk"] != 'purposefully_ignored%0:00:00::':
@@ -176,7 +194,8 @@ def convert_princeton_tagged_glosses_format(xml_root, out_path, sentence_tag="de
                         wf: etree.Element = etree.SubElement(gloss_xml, "wf",
                                                              {"lemma": token.attrib.get("lemma", token.text),
                                                               "pos": get_universal_pos(get_simplified_pos(
-                                                                  token.attrib["pos"]) )if "pos" in token.attrib else "O"})
+                                                                  token.attrib[
+                                                                      "pos"])) if "pos" in token.attrib else "O"})
                         text_str = token.text
                         if text_str.strip() == "":
                             text_str = list(token.itertext())[-1]
