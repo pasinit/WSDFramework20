@@ -37,7 +37,7 @@ def parse_babelnet_glosses2(input_file, output_file, language):
 
 
 def tokenize_glosses_and_merge_annotations(input_file, language):
-    # stanfordnlp.download(language)
+    #stanfordnlp.download(language)
     pipeline = stanfordnlp.Pipeline(processors="tokenize,pos,lemma", use_gpu=True, lang=language)
     all_structured_lines = dict()
     with open(input_file) as lines:
@@ -204,9 +204,9 @@ if __name__ == "__main__":
     #                                         "data/princeton_tagged_glosses/semeval2013_format/princeton_examples.all.data.xml",
     #                                         valid_annotation_type={"man", "auto"}, sentence_tag="ex")
 
-    parse_babelnet_glosses2("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_en.txt",
-                            "/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_en.parsed.xml",
-                            "it")
+    parse_babelnet_glosses2("data/babelnet_multilingual_glosses/glosses_en.txt",
+                            "data/babelnet_multilingual_glosses/glosses_en.parsed.xml",
+                            "en")
     # # lang = "de"
     # # with open("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.txt.pkl", "rb") as reader:
     # #     xml = pkl.load(reader)
