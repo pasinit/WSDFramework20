@@ -12,26 +12,27 @@ from src.data.dataset_utils import get_simplified_pos, get_pos_from_key, get_uni
 def parse_babelnet_glosses2(input_file, output_file, language):
     all_structured_lines = tokenize_glosses_and_merge_annotations(input_file, language)
 
-    root = etree.Element("corpus")
-    root.attrib.update({"lang": language, "source": "babelnet-glosses-%s" % language})
     key2gold = dict()
-    for doc_id, structured_glosses in all_structured_lines.items():
-        document_xml = etree.SubElement(root, "text")
-        document_xml.attrib.update({"id": doc_id})
-        for sentence_id, (structured_tokens, source) in enumerate(structured_glosses):
-            sentence_xml = etree.SubElement(document_xml, "sentence")
-            sentence_xml.attrib["id"] = "%s.s%03d" % (doc_id, sentence_id)
-            for token_idx, word, lemma, pos, annotation in structured_tokens:
-                if annotation is None:
-                    token_xml = etree.SubElement(sentence_xml, "wf")
-                else:
-                    token_xml = etree.SubElement(sentence_xml, "instance")
-                    token_xml.attrib["id"] = doc_id + ".s%03d.t%03d" % (sentence_id, token_idx)
-                    key2gold[token_xml.attrib["id"]] = annotation["bnid"]
-                token_xml.attrib.update({"lemma": lemma if lemma is not None else word, "pos": pos})
-                token_xml.text = word
-    et = etree.ElementTree(root)
-    et.write(output_file, pretty_print=True)
+    with open(output_file, "w") as writer:
+        writer.write('<?xml version="1.0" encoding="UTF-8" ?>\n')
+        writer.write('<corpus lang="{}" source="babelnet-glosses-{}">\n'.format(language, language))
+        for doc_id, structured_glosses in all_structured_lines.items():
+            document_xml = etree.Element("text")
+            document_xml.attrib.update({"id": doc_id})
+            for sentence_id, (structured_tokens, source) in enumerate(structured_glosses):
+                sentence_xml = etree.SubElement(document_xml, "sentence")
+                sentence_xml.attrib["id"] = "%s.s%03d" % (doc_id, sentence_id)
+                for token_idx, word, lemma, pos, annotation in structured_tokens:
+                    if annotation is None:
+                        token_xml = etree.SubElement(sentence_xml, "wf")
+                    else:
+                        token_xml = etree.SubElement(sentence_xml, "instance")
+                        token_xml.attrib["id"] = doc_id + ".s%03d.t%03d" % (sentence_id, token_idx)
+                        key2gold[token_xml.attrib["id"]] = annotation["bnid"]
+                    token_xml.attrib.update({"lemma": lemma if lemma is not None else word, "pos": pos})
+                    token_xml.text = word
+            writer.write(str(etree.tostring(document_xml, pretty_print=True, encoding="utf8"), "utf-8"))
+        writer.write("</corpus>\n")
     with open(output_file.replace(".xml", ".gold.key.txt"), "w") as writer:
         for key, gold in key2gold.items():
             writer.write(key + "\t" + gold + "\n")
@@ -122,6 +123,11 @@ def tokenize_glosses_and_merge_annotations(input_file, language):
             l.append((indexed_merged_tokens, source))
             all_structured_lines[doc_id] = l
             counter += 1
+<<<<<<< HEAD
+=======
+            # if counter >= 100:
+            #     break
+>>>>>>> 46b9577940bbb8d6bc404e983da35a4735babd7c
     return all_structured_lines
 
 
@@ -222,9 +228,9 @@ if __name__ == "__main__":
     #                                         "data/princeton_tagged_glosses/semeval2013_format/princeton_examples.all.data.xml",
     #                                         valid_annotation_type={"man", "auto"}, sentence_tag="ex")
 
-    parse_babelnet_glosses2("data/babelnet_multilingual_glosses/glosses_en.txt",
-                            "data/babelnet_multilingual_glosses/glosses_en.parsed.xml",
-                            "en")
+    parse_babelnet_glosses2("data/training_data/babelnet_multilingual_glosses/glosses_it.txt",
+                            "data/training_data/babelnet_multilingual_glosses/glosses_it.parsed.xml.test",
+                            "it")
     # # lang = "de"
     # # with open("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.txt.pkl", "rb") as reader:
     # #     xml = pkl.load(reader)
