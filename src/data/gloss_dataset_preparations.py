@@ -30,8 +30,6 @@ def parse_babelnet_glosses2(input_file, output_file, language):
                     key2gold[token_xml.attrib["id"]] = annotation["bnid"]
                 token_xml.attrib.update({"lemma": lemma if lemma is not None else word, "pos": pos})
                 token_xml.text = word
-            if len(key2gold) == 100:
-                break
     et = etree.ElementTree(root)
     et.write(output_file, pretty_print=True)
     with open(output_file.replace(".xml", ".gold.key.txt"), "w") as writer:
@@ -124,8 +122,6 @@ def tokenize_glosses_and_merge_annotations(input_file, language):
             l.append((indexed_merged_tokens, source))
             all_structured_lines[doc_id] = l
             counter += 1
-            if counter >= 100:
-                break
     return all_structured_lines
 
 
