@@ -17,7 +17,7 @@ python src/data/data_preparation.py \
 
 ## MERGE SemCor + princeton_examples_all
 echo "SemCor + princeton_examples_all"
-python src/data/data_preparation.py \eeeeeeeeeeeeeeeeeeeeeeeeeeeeew
+python src/data/data_preparation.py \
 --dataset_paths /home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml data/princeton_tagged_glosses/semeval2013_format/princeton_examples.all.data.xml \
 --lang en \
 --dataset_name semcor+princeton_glosses_man \
