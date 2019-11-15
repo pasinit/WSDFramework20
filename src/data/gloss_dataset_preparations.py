@@ -123,8 +123,8 @@ def tokenize_glosses_and_merge_annotations(input_file, language):
             l.append((indexed_merged_tokens, source))
             all_structured_lines[doc_id] = l
             counter += 1
-            if counter >= 100:
-                break
+            # if counter >= 100:
+            #     break
     return all_structured_lines
 
 
