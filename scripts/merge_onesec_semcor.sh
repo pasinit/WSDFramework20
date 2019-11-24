@@ -6,15 +6,11 @@ echo `which python3`
 echo "SemCor + onesec_en"
 python3 src/data/data_preparation.py \
 merge \
---dataset_paths /home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml data/onesec+semcor/onesec_en_to_add.data.xml \
+--dataset_paths data/training_data/en_training_data/semcor_bn/semcor.en.data.xml \
+data/training_data/multilingual_training_data/onesec/en/onesec.en.new_testset_instances.data.xml \
 --lang en \
 --dataset_name semcor+onesec_en \
---outpath data/onesec+semcor/semcor+onesec_en.data.xml
-
-python src/data/data_preparation.py \
-convert_key2bn \
---input_key data/onesec+semcor/semcor+onesec_en.gold.key.txt \
---output_key data/onesec+semcor/semcor+onesec_en.gold.key.bn40.txt
+--outpath data/training_data/multilingual_training_data/onesec+translated_semcor/en/semcor+onesec_en.data.xml
 
 ## MERGE SemCor + onesec_en + wordnet_gloss_manual
 echo "SemCor + onesec_en +  gloss_manual"

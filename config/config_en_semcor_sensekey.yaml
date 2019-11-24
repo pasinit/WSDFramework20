@@ -4,11 +4,12 @@ data:
   #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
-    - data/training_data/semcor+glosses/semcor+princeton_glosses_manual.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
-  sense_inventory: wnoffsets
-  label_from: wnoffsets
+    - data/training_data/en_training_data/semcor/semcor.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+  sense_inventory: sensekey
+  label_from: training
   gold_id_separator: " "
-  outpath: data/out/
+  outpath: data/models/en_semcor_sensekeys_mfs/
+  mfs_file: resources/mfs/mfs_wn.en.wnkeys.txt
   test_names:
     - senseval2
     - senseval3
@@ -33,5 +34,5 @@ training:
 
 #wandb:
 #  tags:
-#    - en
 #    - bert-large-cased
+#    - sensekey

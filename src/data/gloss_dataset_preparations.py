@@ -107,7 +107,9 @@ def tokenize_glosses_and_merge_annotations(input_file, language):
                     wlta = parse_text(pipeline, to_parse)
                 tokens.extend(wlta)
                 aux = annotation_token.replace(" ", "_")
-                tokens.append((aux, aux, "NOUN", annotation))
+                pos = annotation["bnid"][-1]
+                pos = get_universal_pos(pos)
+                tokens.append((aux, aux, pos, annotation))
                 last_start = annotation["end"] + 1
             if last_start < len(gloss):
                 to_parse = gloss[last_start:].strip()

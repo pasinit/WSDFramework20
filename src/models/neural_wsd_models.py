@@ -10,7 +10,7 @@ from allennlp_mods.callbacks import OutputWriter
 from nlp_models.huggingface_wrappers import GenericHuggingfaceWrapper
 from torch import nn
 from torch.nn import Module, Linear, Parameter
-from typing import Dict, Iterator, Any, Callable
+from typing import Dict, Iterator, Any, Callable, List
 import torch
 import numpy as np
 from src.data.data_structures import Lemma2Synsets
@@ -178,15 +178,41 @@ class WSDOutputWriter(OutputWriter):
 
 
 class WSDF1(Metric):
-    def __init__(self, label_vocab: LabelVocabulary):
+    def __init__(self, label_vocab: LabelVocabulary, use_mfs: bool = False, mfs_vocab: Dict[str, int] = None):
+        assert not use_mfs or mfs_vocab is not None
         self.correct = 0.0
+        self.correct_mfs = 0.0
         self.tot = 0.0
+        self.tot_mfs = 0.0
         self.answers = 0.0
+        self.answers_mfs = 0.0
+        self.mfs_vocab = mfs_vocab
+        self.use_mfs = use_mfs
         self.unk_id = label_vocab.get_idx("<unk>") if "<unk>" in label_vocab.stoi else label_vocab.get_idx("<pad>")
         assert self.unk_id is not None
         self.label_vocab = label_vocab
 
-    def __call__(self, predictions, gold_labels, mask=None):
+    def compute_metrics_no_mfs(self, predictions, labels):
+        for p, l in zip(predictions, labels):
+            self.tot += 1
+            if p == self.unk_id:
+                continue
+            self.answers += 1
+            if self.label_vocab.get_string(p) in l:
+                self.correct += 1
+
+    def compute_metrics_mfs(self, lemmapos, predictions, labels):
+        for lp, p, l in zip(lemmapos, predictions, labels):
+            self.tot_mfs += 1
+            self.answers_mfs += 1
+            if p == self.unk_id:
+                p = self.mfs_vocab.get(lp, p)
+            else:
+                p = self.label_vocab.get_string(p)
+            if p in l:
+                self.correct_mfs += 1
+
+    def __call__(self, lemmapos, predictions, gold_labels, mask=None, ids=None):
         """
         :param predictions:
         :param gold_labels: assumes this is a List[List[Set[str]]] containing for each batch a list of Set each
@@ -195,13 +221,10 @@ class WSDF1(Metric):
         :return:
         """
         assert len(predictions) == len(gold_labels)
-        for p, l in zip(predictions, gold_labels):
-            self.tot += 1
-            if p == self.unk_id:
-                continue
-            self.answers += 1
-            if self.label_vocab.get_string(p.item()) in l:
-                self.correct += 1
+        # p, r, f1 = get_metrics_no_mfs(predictions, gold_labels)
+        # p_mfs, r_mfs, f1_mfs = get_matrics_mfs(lemmapos, predictions, gold_labels)
+        self.compute_metrics_no_mfs(predictions, gold_labels)
+        self.compute_metrics_mfs(lemmapos, predictions, gold_labels)
 
     def get_metric(self, reset: bool):
         if self.answers == 0:
@@ -209,16 +232,30 @@ class WSDF1(Metric):
         precision = self.correct / self.answers
         recall = self.correct / self.tot
         f1 = 2 * (precision * recall) / ((precision + recall) if (precision + recall) > 0 else 1)
+        precision_mfs = self.correct_mfs / self.answers_mfs
+        recall_mfs = self.correct_mfs / self.tot_mfs
+        f1_mfs = 2 * (precision_mfs * recall_mfs) / (
+            (precision_mfs + recall_mfs) if (precision_mfs + recall_mfs) > 0 else 1)
+
+        ret_dict = {"precision": precision, "recall": recall, "f1": f1, "p_mfs": precision_mfs,
+                    "recall_mfs": recall_mfs,
+                    "f1_mfs": f1_mfs, "ok": self.correct, "answers": self.answers, "ok_mfs": self.correct_mfs,
+                    "answers_mfs": self.answers_mfs,
+                    "total": self.tot_mfs}
         if reset:
             self.tot = 0.0
+            self.tot_mfs = 0.0
             self.answers = 0.0
             self.correct = 0.0
-        return {"precision": precision, "recall": recall, "f1": f1}
+            self.correct_mfs = 0.0
+            self.answers_mfs = 0.0
+        return ret_dict
 
 
 class AllenWSDModel(Model):
     def __init__(self, lemmapos2classes: Lemma2Synsets, word_embeddings: TextFieldEmbedder, out_sz, label_vocab,
-                 vocab=None, merge_fun: Callable = lambda emb: torch.mean(emb, 0)):
+                 vocab=None, merge_fun: Callable = lambda emb: torch.mean(emb, 0), mfs_vocab: Dict[str, str] = None,
+                 return_full_output=False):
         vocab = Vocabulary() if vocab is None else vocab
         super().__init__(vocab)
         self.word_embeddings = word_embeddings
@@ -227,8 +264,9 @@ class AllenWSDModel(Model):
         self.loss = nn.CrossEntropyLoss()
         self.merge_fun = merge_fun
         self.label_vocab = label_vocab
+        self.return_full_output = return_full_output
         self.lemma2classes = lemmapos2classes
-        self.accuracy = WSDF1(label_vocab)
+        self.accuracy = WSDF1(label_vocab, mfs_vocab is not None, mfs_vocab)
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         return self.accuracy.get_metric(reset)
@@ -254,17 +292,32 @@ class AllenWSDModel(Model):
                 token_level_embeddings[batch_i, o_j] = token_level_emb
         return token_level_embeddings
 
-    def forward(self, tokens: Dict[str, torch.Tensor],
-                ids: Any, words, lemmapos, label_ids: torch.Tensor,
-                possible_labels, labeled_token_indices, labeled_lemmapos, labels) -> torch.Tensor:
-        mask = (label_ids != self.label_vocab["<pad>"]).float().to(tokens["tokens"].device)
+    def get_embeddings(self, tokens, token_ids, mask):
+        # token_ids = [t for i in range(len(token_ids)) for t in token_ids[i] if t is not None]
+        # if self.vector_cache is not None and len(self.vector_cache) > 0 and self.training and all(
+        #         x in self.vector_cache for x in token_ids):
+        #     embeddings = torch.stack([self.vector_cache[x].to(self.projection.weight.device) for x in token_ids])
+        # else:
         with torch.no_grad():
             embeddings = self.word_embeddings(tokens)
         embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
-        embeddings = embeddings[mask != 0]
+        retrieved_embedding_mask = mask != 0
+        masked_embeddings = embeddings[retrieved_embedding_mask]
+        # if token_ids is not None and self.training:
+        #     self.vector_cache.update(dict(zip(token_ids, masked_embeddings)))
+        #     assert all(torch.cat([self.vector_cache[x] for x in token_ids], 0) == masked_embeddings)
+        embeddings = masked_embeddings
+
+        return embeddings, retrieved_embedding_mask
+
+    def forward(self, tokens: Dict[str, torch.Tensor], sentence_ids: List[str],
+                ids: Any, words, lemmapos, label_ids: torch.Tensor,
+                possible_labels, labeled_token_indices, labeled_lemmapos, labels) -> torch.Tensor:
+        mask = (label_ids != self.label_vocab["<pad>"]).float().to(tokens["tokens"].device)
+        embeddings, retrieved_embedding_mask = self.get_embeddings(tokens, ids, mask)
         labeled_logits = self.projection(embeddings)  # * mask.unsqueeze(-1)
-        target_labels = label_ids[mask != 0]
-        labels = [x for y in labels for x in y]
+        target_labels = label_ids[retrieved_embedding_mask]
+        flatten_labels = [x for y in labels for x in y]
         possible_labels = [x for y in possible_labels for x in y]
         possible_classes_mask = torch.zeros_like(labeled_logits)  # .to(class_logits.device)
         for i, ith_lp in enumerate(possible_labels):
@@ -273,22 +326,55 @@ class AllenWSDModel(Model):
         labeled_logits = labeled_logits * possible_classes_mask
         predictions = None
         if not self.training:
-            predictions = list()
-            for ll in labeled_logits:
-                mask = (ll != 0).float()
-                ll = torch.exp(ll) * mask
-                predictions.append(torch.argmax(ll, -1))
-            predictions = torch.stack(predictions)
-            self.accuracy(predictions, labels)
+            predictions = self.get_predictions(labeled_logits)
+            self.accuracy([x for y in labeled_lemmapos for x in y], predictions, flatten_labels)
         output = {"class_logits": labeled_logits, "all_logits": labeled_logits, "predictions": predictions,
                   "labels": labels, "all_labels": label_ids, "str_labels": labels,
                   "ids": [[x for x in i if x is not None] for i in ids], "loss":
                       self.loss(labeled_logits, target_labels)}
+        if self.return_full_output:
+            full_labeled_logits, full_predictions = self.reconstruct_full_output(retrieved_embedding_mask,
+                                                                                 labeled_logits,
+                                                                                 predictions)
+            output.update({"full_labeled_logits": full_labeled_logits, "full_predictions": full_predictions})
 
         return output
 
+    def reconstruct_full_output(self, retrieved_embedding_mask, labeled_logits, predictions):
+        full_logits = torch.zeros(retrieved_embedding_mask.size(0), retrieved_embedding_mask.size(1),
+                                  labeled_logits.size(-1)).to(predictions.device)
+        full_predictions = torch.zeros(retrieved_embedding_mask.size(0), retrieved_embedding_mask.size(1)).to(
+            predictions.device)
+        index = 0
+        for i, b_mask in enumerate(retrieved_embedding_mask):
+            for j, elem in enumerate(b_mask):
+                if elem.item():
+                    full_logits[i][j] = labeled_logits[index]
+                    full_predictions[i][j] = predictions[index]
+                    index += 1
+
+        return full_logits, full_predictions
+
+    def add_mfs(self, lemmapos, predictions):
+        for i, lp, p in enumerate(zip(lemmapos, predictions)):
+            if p == self.label_vocab.get_idx("<unk>"):
+                mfs = self.mfs_dictionary.get(lemmapos, self.label_vocab.get_idx("<unk>"))
+                predictions[i] = mfs
+
+    def get_predictions(self, labeled_logits):
+        predictions = list()
+        for ll in labeled_logits:
+            mask = (ll != 0).float()
+            ll = torch.exp(ll) * mask
+            predictions.append(torch.argmax(ll, -1))
+        return torch.stack(predictions)
+
     @staticmethod
-    def get_bert_based_wsd_model(bert_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab, vocab=None):
+    def get_bert_based_wsd_model(bert_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
+                                 mfs_dictionary=None,
+                                 vocab=None,
+                                 return_full_output=False,
+                                 cache_vectors=True):
 
         vocab = Vocabulary() if vocab is None else vocab
         bert_embedder = PretrainedBertEmbedder(
@@ -300,6 +386,7 @@ class AllenWSDModel(Model):
                                                                     allow_unmatched_keys=True)
         str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
         word_embeddings.to(str_device)
-        model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab)
+        model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
+                              return_full_output=return_full_output)
         model.to(str_device)
         return model

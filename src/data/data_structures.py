@@ -41,7 +41,7 @@ class Lemma2Synsets(dict):
         lemmapos2gold = dict()
         for instance in root.findall("./text/sentence/instance"):
             tokenid = instance.attrib["id"]
-            lemmapos = instance.attrib["lemma"] + "#" + get_simplified_pos(instance.attrib["pos"])
+            lemmapos = instance.attrib["lemma"].lower() + "#" + get_simplified_pos(instance.attrib["pos"])
             lemmapos2gold[lemmapos] = lemmapos2gold.get(lemmapos, set())
             lemmapos2gold[lemmapos].add(key2gold[tokenid].replace("%5", "%3"))
         for lemmapos, golds in lemmapos2gold.items():

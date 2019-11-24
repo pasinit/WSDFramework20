@@ -14,13 +14,20 @@ from allennlp_mods.callback_trainer import MyCallbackTrainer
 from allennlp_mods.callbacks import ValidateAndWrite, WanDBTrainingCallback
 from torch import optim
 
+from src.data.dataset_utils import get_pos_from_key
+
 from src.data.datasets import Vocabulary, AllenWSDDatasetReader
+from src.misc.logging import get_info_logger
 from src.models.neural_wsd_models import AllenWSDModel, WSDOutputWriter
 import numpy as np
+
 torch.random.manual_seed(42)
 np.random.seed(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
+
+logger = get_info_logger(__name__)
+
 
 def build_outpath_subdirs(path):
     if not os.path.exists(path):
@@ -51,6 +58,7 @@ def main(args):
     label_from = data_config["label_from"]
     max_sentence_token = data_config["max_sentence_token"]
     max_segments_in_batch = data_config["max_segments_in_batch"]
+    mfs_file = data_config.get("mfs_file", None)
     sliding_window = data_config["sliding_window"]
     device = model_config["device"]
     model_name = model_config["model_name"]
@@ -59,7 +67,7 @@ def main(args):
     wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, ",".join(langs)])
     device_int = 0 if device == "cuda" else -1
     test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
-    training_paths = train_data_root#"{}/SemCor/semcor.data.xml".format(train_data_root)
+    training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
     outpath = os.path.join(outpath, model_name)
     build_outpath_subdirs(outpath)
     token_indexer = PretrainedBertIndexer(
@@ -70,35 +78,46 @@ def main(args):
 
     if label_from == "wnoffsets":
         dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
-    elif label_from == "wnkeys":
+    elif label_from == "sensekeys":
         dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
     elif label_from == "bnids":
         dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
     elif label_from == "training":
         dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
+
     else:
         raise RuntimeError(
-            "{} label_from has not been recognised, ensure it is one of the following: {wnoffsets, wnkeys, bnids}")
+            "%s label_from has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnids}" % (label_from))
 
-    reader, lemma2synsets, label_vocab = dataset_builder({"tokens": token_indexer},
-                                                         sliding_window=sliding_window,
-                                                         max_sentence_token=max_sentence_token,
-                                                         gold_id_separator=gold_id_separator, langs=langs,
-                                                         training_data_xmls = training_paths, sense_inventory=sense_inventory)
+    reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
+                                                                         sliding_window=sliding_window,
+                                                                         max_sentence_token=max_sentence_token,
+                                                                         gold_id_separator=gold_id_separator,
+                                                                         langs=langs,
+                                                                         training_data_xmls=training_paths,
+                                                                         sense_inventory=sense_inventory,
+                                                                         mfs_file=mfs_file)
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
-                                                   Vocabulary())
+                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary, cache_vectors=True)
+    logger.info("loading training data...")
     train_ds = reader.read(training_paths)
+    #####################################################
+    # NEDED so to not split sentences in the test data. #
+    reader.max_sentence_len = 200
+    reader.sliding_window_size = 200
+    #####################################################
+    logger.info("loading test data...")
     tests_dss = [reader.read(test_path) for test_path in test_paths]
     iterator = BucketIterator(
         biggest_batch_first=True,
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-        # instances_per_epoch=32
+        # instances_per_epoch=10
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
-        # biggest_batch_first=True,
+        biggest_batch_first=True,
         sorting_keys=[("tokens", "num_tokens")]
     )
     iterator.index_with(Vocabulary())
@@ -127,9 +146,9 @@ def main(args):
         pkl.dump(label_vocab, writer)
 
 
-#os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", default="config/en+es_config.yaml")
+    parser.add_argument("--config", default="config/config_es_s+g+o.yaml")
     args = parser.parse_args()
     main(args)
