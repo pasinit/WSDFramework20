@@ -166,7 +166,7 @@ class WSDOutputWriter(OutputWriter):
 
     def write(self, outs):
         predictions = outs["predictions"].flatten().tolist()
-        golds = outs["str_labels"]
+        golds = [x for y in outs["str_labels"] for x in y]
         ids = [x for y in outs["ids"] for x in y]
         assert len(predictions) == len(golds)
         for i in range(len(predictions)):  # p, l in zip(predictions, labels):
@@ -224,7 +224,8 @@ class WSDF1(Metric):
         # p, r, f1 = get_metrics_no_mfs(predictions, gold_labels)
         # p_mfs, r_mfs, f1_mfs = get_matrics_mfs(lemmapos, predictions, gold_labels)
         self.compute_metrics_no_mfs(predictions, gold_labels)
-        self.compute_metrics_mfs(lemmapos, predictions, gold_labels)
+        if self.mfs_vocab is not None:
+            self.compute_metrics_mfs(lemmapos, predictions, gold_labels)
 
     def get_metric(self, reset: bool):
         if self.answers == 0:
@@ -232,16 +233,19 @@ class WSDF1(Metric):
         precision = self.correct / self.answers
         recall = self.correct / self.tot
         f1 = 2 * (precision * recall) / ((precision + recall) if (precision + recall) > 0 else 1)
-        precision_mfs = self.correct_mfs / self.answers_mfs
-        recall_mfs = self.correct_mfs / self.tot_mfs
-        f1_mfs = 2 * (precision_mfs * recall_mfs) / (
-            (precision_mfs + recall_mfs) if (precision_mfs + recall_mfs) > 0 else 1)
+        ret_dict = {"precision": precision, "recall": recall, "f1": f1, "correct": self.correct,
+                    "answers": self.answers,
+                    "total": self.tot}
+        if self.mfs_vocab is not None:
+            precision_mfs = self.correct_mfs / self.answers_mfs
+            recall_mfs = self.correct_mfs / self.tot_mfs
+            f1_mfs = 2 * (precision_mfs * recall_mfs) / (
+                (precision_mfs + recall_mfs) if (precision_mfs + recall_mfs) > 0 else 1)
+            ret_dict.update({"p_mfs": precision_mfs,
+                             "recall_mfs": recall_mfs,
+                             "f1_mfs": f1_mfs, "correct_mfs": self.correct_mfs,
+                             "answers_mfs": self.answers_mfs, "tot_mfs":self.tot_mfs})
 
-        ret_dict = {"precision": precision, "recall": recall, "f1": f1, "p_mfs": precision_mfs,
-                    "recall_mfs": recall_mfs,
-                    "f1_mfs": f1_mfs, "ok": self.correct, "answers": self.answers, "ok_mfs": self.correct_mfs,
-                    "answers_mfs": self.answers_mfs,
-                    "total": self.tot_mfs}
         if reset:
             self.tot = 0.0
             self.tot_mfs = 0.0
@@ -327,7 +331,7 @@ class AllenWSDModel(Model):
         predictions = None
         if not self.training:
             predictions = self.get_predictions(labeled_logits)
-            self.accuracy([x for y in labeled_lemmapos for x in y], predictions, flatten_labels)
+            self.accuracy([x for y in labeled_lemmapos for x in y], predictions.tolist(), flatten_labels)
         output = {"class_logits": labeled_logits, "all_logits": labeled_logits, "predictions": predictions,
                   "labels": labels, "all_labels": label_ids, "str_labels": labels,
                   "ids": [[x for x in i if x is not None] for i in ids], "loss":

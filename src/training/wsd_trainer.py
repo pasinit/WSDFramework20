@@ -12,6 +12,7 @@ from allennlp.training.callbacks import Checkpoint
 from allennlp.training.checkpointer import Checkpointer
 from allennlp_mods.callback_trainer import MyCallbackTrainer
 from allennlp_mods.callbacks import ValidateAndWrite, WanDBTrainingCallback
+from allennlp_mods.checkpointer import MyCheckpoint
 from torch import optim
 
 from src.data.dataset_utils import get_pos_from_key
@@ -118,7 +119,9 @@ def main(args):
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         biggest_batch_first=True,
-        sorting_keys=[("tokens", "num_tokens")]
+        sorting_keys=[("tokens", "num_tokens")],
+        # instances_per_epoch=10
+
     )
     iterator.index_with(Vocabulary())
     writers = [WSDOutputWriter(os.path.join(outpath, "predictions", name + ".predictions.txt"), label_vocab.itos) for
@@ -128,7 +131,7 @@ def main(args):
                  name, data, writer in zip(
             test_names, tests_dss, writers)]
     callbacks.append(WanDBTrainingCallback())
-    callbacks.append(Checkpoint(Checkpointer(os.path.join(outpath, "checkpoints"))))
+    callbacks.append(MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"))))
 
     trainer = MyCallbackTrainer(model=model,
                                 optimizer=optim.Adam(model.parameters(), lr=learning_rate),
