@@ -149,7 +149,7 @@ def main(args):
         pkl.dump(label_vocab, writer)
 
 
-os.environ["WANDB_MODE"] = "dryrun"
+#os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--config", default="config/config_de_s+g+o.yaml")
