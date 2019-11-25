@@ -1,0 +1,9 @@
+
+*__pycache__*
+data
+*.log
+resources
+wandb
+.*__init__.*
+src/__init__.pyc
+.idea
