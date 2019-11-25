@@ -1,4 +1,4 @@
-
+.*
 *__pycache__*
 data
 *.log
@@ -7,3 +7,5 @@ wandb
 .*__init__.*
 src/__init__.pyc
 .idea
+data
+resources
