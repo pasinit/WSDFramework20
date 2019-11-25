@@ -149,6 +149,6 @@ def main(args):
 os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", default="config/config_es_s+g+o.yaml")
+    parser.add_argument("--config", default="config/config_fr_s+g+o.yaml")
     args = parser.parse_args()
     main(args)
