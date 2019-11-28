@@ -7,7 +7,7 @@ echo "OneSeC_de + SemCor_de + babelnet_glosses_de"
 python src/data/data_preparation.py \
 merge \
 --dataset_paths data/training_data/multilingual_training_data/translated_semcor/de/semcor.de.data.xml \
-data/training_data/multilingual_training_data/babel_glosses/de/glosses_de.parsed.filter.data.xml \
+data/training_data/multilingual_training_data/babel_glosses_train_dev/de/glosses_de.filter.train.data.xml \
 data/training_data/multilingual_training_data/onesec/de/onesec.de.new_testset_instances.data.xml \
 --lang de \
 --dataset_name onesec_de+semcor_de+babelgloss_de \
@@ -18,7 +18,7 @@ echo "OneSeC_es + SemCor_es + babelnet_glosses_es"
 python src/data/data_preparation.py \
 merge \
 --dataset_paths data/training_data/multilingual_training_data/translated_semcor/es/semcor.es.data.xml \
-data/training_data/multilingual_training_data/babel_glosses/es/glosses_es.parsed.filter.data.xml \
+data/training_data/multilingual_training_data/babel_glosses_train_dev/es/glosses_es.filter.train.data.xml \
 data/training_data/multilingual_training_data/onesec/es/onesec.es.new_testset_instances.data.xml \
 --lang es \
 --dataset_name onesec_es+semcor_es+babelgloss_es \
@@ -29,7 +29,7 @@ echo "OneSeC_fr + SemCor_fr + babelnet_glosses_fr"
 python src/data/data_preparation.py \
 merge \
 --dataset_paths data/training_data/multilingual_training_data/translated_semcor/fr/semcor.fr.data.xml \
-data/training_data/multilingual_training_data/babel_glosses/fr/glosses_fr.parsed.filter.data.xml \
+data/training_data/multilingual_training_data/babel_glosses_train_dev/fr/glosses_fr.filter.train.data.xml \
 data/training_data/multilingual_training_data/onesec/fr/onesec.fr.new_testset_instances.data.xml \
 --lang fr \
 --dataset_name onesec_fr+semcor_fr+babelgloss_fr \
@@ -39,7 +39,7 @@ echo "OneSeC_it + SemCor_it + babelnet_glosses_it"
 python src/data/data_preparation.py \
 merge \
 --dataset_paths data/training_data/multilingual_training_data/translated_semcor/it/semcor.it.data.xml \
-data/training_data/multilingual_training_data/babel_glosses/it/glosses_it.parsed.filter.data.xml \
+data/training_data/multilingual_training_data/babel_glosses_train_dev/it/glosses_it.filter.train.data.xml \
 data/training_data/multilingual_training_data/onesec/it/onesec.it.new_testset_instances.data.xml \
 --lang it \
 --dataset_name onesec_it+semcor_it+babelgloss_it \
@@ -49,7 +49,7 @@ echo "onesec_en + semcor_en + babelnet_glosses_en"
 python src/data/data_preparation.py \
 merge \
 --dataset_paths data/training_data/multilingual_training_data/translated_semcor/en/semcor.en.data.xml \
-data/training_data/multilingual_training_data/babel_glosses/en/glosses_en.parsed.filter.data.xml \
+data/training_data/multilingual_training_data/babel_glosses_train_dev/en/glosses_en.filter.train.data.xml \
 data/training_data/multilingual_training_data/onesec/en/onesec.en.new_testset_instances.data.xml \
 --lang en \
 --dataset_name onesec_en+semcor_en+babelgloss_en \

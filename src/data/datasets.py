@@ -245,6 +245,8 @@ class AllenWSDDatasetReader(DatasetReader):
             ids = list()
             labels = list()
             for elem in sentence:
+                if elem.text is None:
+                    continue
                 words.append(Token(elem.text))
                 lemmaposs.append(elem.attrib["lemma"].lower() + "#" + get_simplified_pos(elem.attrib["pos"]))
                 if elem.tag == "wf":
