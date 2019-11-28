@@ -9,3 +9,6 @@ src/__init__.pyc
 .idea
 data
 resources
+*__pycache__*
+wandb/
+*.log
