@@ -12,6 +12,6 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--sentence_file", required=True)
     parser.add_argument("--model_name", required=True, choices=["gpt2", "xlm"])
-    parser.add_argument("--ouput_file", required=True)
+    parser.add_argument("--output_file", required=True)
     args = parser.parse_args()
     main(args)
