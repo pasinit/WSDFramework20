@@ -44,8 +44,8 @@ class SentenceScorer(object):
                 writer.write("\n".join(lines) + "\n")
                 counter += 1
 
-                if counter == 100:
-                    break
+                # if counter == 100:
+                #     break
 
     def get_output(self, all_input_tokens, metadata_list, token_mapping, all_losses):
         lines = list()
