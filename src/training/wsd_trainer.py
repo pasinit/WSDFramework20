@@ -149,10 +149,10 @@ def main(args):
         pkl.dump(label_vocab, writer)
 
 
-#os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", default="config/config_fr_s+g+o.yaml")
+    parser.add_argument("--config", default="config/config_es_s+g+o.yaml")
     parser.add_argument("--dryrun", action="store_true")
     args = parser.parse_args()
     if args.dryrun:
