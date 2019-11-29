@@ -11,7 +11,7 @@ from src.language_modelling_scorer.language_modelling import AutoHuggingfaceInde
 
 
 class LMDataset(DatasetReader):
-    def __init__(self, indexer, min_tokens=5, max_tokens=70, lazy=True):
+    def __init__(self, indexer, min_tokens=5, max_tokens=70, lazy=True, one_elem_per_word=False):
         """
         Sentence ID TAB Wikipedia Title TAB sentence TAB start index SPACE end index SPACE BN id SPACE corresponding words in the sentence TAB
         """
@@ -19,6 +19,7 @@ class LMDataset(DatasetReader):
         self.indexer = indexer
         self.min_tokens = min_tokens
         self.max_tokens = max_tokens
+        self.one_elem_per_word = one_elem_per_word
 
     def text_to_instance(self, sid, tokens, indices, words, bnids):
         fields = {"tokens": TextField(tokens, token_indexers={"tokens": self.indexer}),
@@ -39,29 +40,31 @@ class LMDataset(DatasetReader):
                 indices = list()
                 words = list()
                 bnids = list()
-                tokens = list()
                 aux = sentence.split(" ")
+                if len(aux) < self.min_tokens or len(aux) > self.max_tokens:
+                    continue
+                if any(len(t) == 0 for t in aux):
+                    continue
+                tokens = [Token(x) for x in aux]
                 for elem in fields[3:]:
                     start_idx, end_idx, bnid, word = elem.split(" ")
                     indices.append((start_idx, end_idx))
-
                     words.append(word)
                     bnids.append(bnid)
-                tokens = [Token(x) for x in sentence.split(" ")]
-                if any(len(t.text) == 0 for t in tokens):
-                    continue
-                if len(tokens) < self.min_tokens or len(tokens) > self.max_tokens:
-                    continue
-                yield self.text_to_instance(sid, tokens, indices, words, bnids)
+                    if self.one_elem_per_word:
+                        yield self.text_to_instance(sid, tokens, [(start_idx, end_idx)], [word], [bnid])
+
+                if not self.one_elem_per_word:
+                    yield self.text_to_instance(sid, tokens, indices, words, bnids)
 
 
 if __name__ == "__main__":
     indexer = AutoHuggingfaceIndexer("xlm-mlm-100-1280", use_starting_offsets=True)
-    dataset = LMDataset(indexer)
+    dataset = LMDataset(indexer, one_elem_per_word=True)
     path = "data/wikipedia_sentences/wiki.it.cleanSplitSent.pasini.txt.idx.gz"
     counter = 0
     for x in dataset.read(path):
-        print(x)
+        print(x["tokens"], x["metadata"].metadata)
         counter += 1
         if counter == 100:
             break
