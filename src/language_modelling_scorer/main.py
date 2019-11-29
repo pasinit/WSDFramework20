@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", required=True, choices=["gpt2"])
     parser.add_argument("--output_file", required=True)
     parser.add_argument("--max_segments_per_batch", default=800, type=int,
-                        desc="number of segments to include in a single batch.")
+                        description="number of segments to include in a single batch.")
 
     args = parser.parse_args()
     main(args)
