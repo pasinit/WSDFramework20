@@ -30,5 +30,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     pprint.pprint(args)
-    exit(1)
     main(args)
