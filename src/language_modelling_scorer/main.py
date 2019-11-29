@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 
 from src.language_modelling_scorer.scorers import SentenceScorer
-
+import pprint
 
 def main(args):
     scorer = SentenceScorer(args.model_name, args.max_segments_per_batch)
@@ -17,4 +17,5 @@ if __name__ == "__main__":
                         help="number of segments to include in a single batch.")
 
     args = parser.parse_args()
+    pprint.pprint(args)
     main(args)
