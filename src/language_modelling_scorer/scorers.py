@@ -36,13 +36,14 @@ class SentenceScorer(object):
                 #     indices_offsets = offsets[torch.arange(offsets.size(0)), indices]
                 #     input_dict["tokens"][torch.arange(input_dict["tokens"].size(0)), indices_offsets] = self.indexer.mask_token_id
                 batch = nn_util.move_to_device(batch, 0)
-                out_dict = self.model(**batch)
+                with torch.no_grad():
+                    out_dict = self.model(**batch)
                 all_logits = out_dict["scores"]
                 metadata_list = batch["metadata"]
                 token_mapping = input_dict["tokens-offsets"]
                 all_input_tokens = input_dict["tokens"]
                 self.get_output(writer, all_input_tokens, all_logits, metadata_list, token_mapping,
-                                          out_dict["loss"].view(batch["tokens"]["tokens"].size(0), -1))
+                                out_dict["loss"].view(batch["tokens"]["tokens"].size(0), -1))
                 # for o in outputs:
                 #     writer.write(o)
                 counter += 1
@@ -61,11 +62,11 @@ class SentenceScorer(object):
             word_scores, perplexity = self.get_scores(input_tokens, logits, losses, mapping, words,
                                                       [x for x, _ in indices])
             writer.write({"sentence_id": sid, "perplexity": perplexity,
-                            "words": [
-                                {"word": word.replace(" ", "_"), "loss": score, "probability": prob}
-                                for word, score, prob in
-                                word_scores]
-                            })
+                          "words": [
+                              {"word": word.replace(" ", "_"), "loss": score, "probability": prob}
+                              for word, score, prob in
+                              word_scores]
+                          })
         return outputs
 
     def get_scores(self, token_ids, logits, losses, mapping, words, words_indices):
@@ -79,7 +80,8 @@ class SentenceScorer(object):
         words_seg_indices = mapping[words_indices]
         words_losses = losses[words_seg_indices]
         perplexity = torch.pow(2, -torch.mean(torch.log2(words_losses)))
-        return list(zip(words, [x.item() for x in words_losses], [x.item() for x in word_seg_scores])), perplexity.item()
+        return list(
+            zip(words, [x.item() for x in words_losses], [x.item() for x in word_seg_scores])), perplexity.item()
 
 
 if __name__ == "__main__":
