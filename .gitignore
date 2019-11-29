@@ -12,3 +12,5 @@ resources
 *__pycache__*
 wandb/
 *.log
+data/
+wsdframework_env/
