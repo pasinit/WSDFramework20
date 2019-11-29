@@ -41,16 +41,16 @@ class SentenceScorer(object):
                 metadata_list = batch["metadata"]
                 token_mapping = input_dict["tokens-offsets"]
                 all_input_tokens = input_dict["tokens"]
-                outputs = self.get_output(all_input_tokens, all_logits, metadata_list, token_mapping,
+                self.get_output(writer, all_input_tokens, all_logits, metadata_list, token_mapping,
                                           out_dict["loss"].view(batch["tokens"]["tokens"].size(0), -1))
-                for o in outputs:
-                    writer.write(o)
+                # for o in outputs:
+                #     writer.write(o)
                 counter += 1
 
-                if counter == 100:
-                    break
+                # if counter == 100:
+                #     break
 
-    def get_output(self, all_input_tokens, all_logits, metadata_list, token_mapping, all_losses):
+    def get_output(self, writer, all_input_tokens, all_logits, metadata_list, token_mapping, all_losses):
         outputs = list()
         for mapping, metadata, input_tokens, losses, logits in zip(token_mapping,
                                                                    metadata_list,
@@ -60,7 +60,7 @@ class SentenceScorer(object):
             words = metadata["words"]
             word_scores, perplexity = self.get_scores(input_tokens, logits, losses, mapping, words,
                                                       [x for x, _ in indices])
-            outputs.append({"sentence_id": sid, "perplexity": perplexity,
+            writer.write({"sentence_id": sid, "perplexity": perplexity,
                             "words": [
                                 {"word": word.replace(" ", "_"), "loss": score, "probability": prob}
                                 for word, score, prob in
