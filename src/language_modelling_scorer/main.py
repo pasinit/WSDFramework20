@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--sentence_file", required=True)
     parser.add_argument("--model_name", required=True, choices=["gpt2", "xlm-mlm-100-1280"])
-    parser.add_argument("--one_elem_per_word", action="store_false", required=True, type=bool, help="define whether the dataset reader"
+    parser.add_argument("--one_elem_per_word", action="store_true", help="define whether the dataset reader"
                                                                              "has to return an instance for each"
                                                                              "target word or for each sentence. Typically,"
                                                                              "xlm needs one instance per word, so set it to True"
