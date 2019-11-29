@@ -11,7 +11,7 @@ from src.language_modelling_scorer.language_modelling import AutoHuggingfaceInde
 
 
 class LMDataset(DatasetReader):
-    def __init__(self, indexer, min_tokens=5, max_tokens=70, lazy=True, one_elem_per_word=False):
+    def __init__(self, indexer, min_tokens=5, max_tokens=70, lazy=True, one_elem_per_word=False, **kwargs):
         """
         Sentence ID TAB Wikipedia Title TAB sentence TAB start index SPACE end index SPACE BN id SPACE corresponding words in the sentence TAB
         """
