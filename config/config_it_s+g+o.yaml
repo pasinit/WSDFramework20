@@ -12,8 +12,6 @@ data:
   test_names:
     - semeval2013_it
     - semeval2015_it
-    - dev_it
-  max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
 
@@ -23,7 +21,7 @@ model:
   learning_rate: 1e-4
 
 training:
-  num_epochs: 40
+  num_epochs: 25 
 
 #wandb:
 #  tags:

@@ -11,18 +11,17 @@ data:
   mfs_file:
   test_names:
     - semeval2013_de
-    - dev_de
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
 
 model:
-  device: cpu
+  device: cuda 
   model_name: bert-base-multilingual-cased
   learning_rate: 1e-4
 
 training:
-  num_epochs: 40
+  num_epochs: 25 
 
 #wandb:
 #  tags:
