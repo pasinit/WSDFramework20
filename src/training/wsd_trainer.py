@@ -88,7 +88,8 @@ def main(args):
 
     else:
         raise RuntimeError(
-            "%s label_from has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnids}" % (label_from))
+            "%s label_from has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnids}" % (
+                label_from))
 
     reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
                                                                          sliding_window=sliding_window,
@@ -99,7 +100,8 @@ def main(args):
                                                                          sense_inventory=sense_inventory,
                                                                          mfs_file=mfs_file)
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
-                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary, cache_vectors=True)
+                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
+                                                   cache_vectors=True)
     logger.info("loading training data...")
     train_ds = reader.read(training_paths)
     #####################################################
@@ -114,7 +116,10 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
+<<<<<<< HEAD
         #instances_per_epoch=10
+=======
+>>>>>>> aeaa23277e2054e5a74fb53b17a2e4864b231581
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
@@ -127,11 +132,12 @@ def main(args):
     writers = [WSDOutputWriter(os.path.join(outpath, "predictions", name + ".predictions.txt"), label_vocab.itos) for
                name
                in test_names]
-    callbacks = [ValidateAndWrite(data, valid_iterator, output_writer=writer, name=name, wandb=True) for
+    callbacks = [ValidateAndWrite(data, valid_iterator, output_writer=writer, name=name, wandb=True, is_dev=name=="semeval2007") for
                  name, data, writer in zip(
             test_names, tests_dss, writers)]
     callbacks.append(WanDBTrainingCallback())
-    callbacks.append(MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"))))
+    callbacks.append(
+        MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"), num_serialized_models_to_keep=100)))
 
     trainer = MyCallbackTrainer(model=model,
                                 optimizer=optim.Adam(model.parameters(), lr=learning_rate),
@@ -140,7 +146,9 @@ def main(args):
                                 num_epochs=num_epochs,
                                 training_data=train_ds,
                                 callbacks=callbacks,
-                                shuffle=True
+                                shuffle=True,
+                                track_dev_metrics=True,
+                                metric_name="f1_mfs"
                                 )
     trainer.train()
     with open(os.path.join(outpath, "last_model.th"), "wb") as writer:
@@ -149,10 +157,14 @@ def main(args):
         pkl.dump(label_vocab, writer)
 
 
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
+<<<<<<< HEAD
     parser.add_argument("--config", required=True)#default="config/config_es_s+g+o.yaml")
+=======
+    parser.add_argument("--config", default="config/config_en_semcor_sensekey.yaml")
+>>>>>>> aeaa23277e2054e5a74fb53b17a2e4864b231581
     parser.add_argument("--dryrun", action="store_true")
     args = parser.parse_args()
     if args.dryrun:
