@@ -69,7 +69,7 @@ def main(args):
     wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, ",".join(langs)])
     if dev_name is None:
         logger.warning("No dev name set... In this way I won't save in best.th the best model according to the "
-                       "development set. best.th will contains the weights of the model at its last epoch")
+                       "development set. best.th will contain the weights of the model at its last epoch")
     device_int = 0 if device == "cuda" else -1
     test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
     training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
@@ -159,7 +159,7 @@ def main(args):
         pkl.dump(label_vocab, writer)
 
 
-os.environ["WANDB_MODE"] = "dryrun"
+#os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--config", required=True)#default="config/config_es_s+g+o.yaml")
