@@ -120,10 +120,7 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-<<<<<<< HEAD
         #instances_per_epoch=10
-=======
->>>>>>> aeaa23277e2054e5a74fb53b17a2e4864b231581
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
