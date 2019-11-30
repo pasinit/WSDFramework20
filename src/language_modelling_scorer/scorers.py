@@ -1,3 +1,5 @@
+import copy
+
 from allennlp.data import Vocabulary
 from allennlp.data.iterators import BucketIterator
 from numpy import random
@@ -25,16 +27,27 @@ class SentenceScorer(object):
         self.is_masked_lm = "gpt" not in self.model_name
 
     def prepare_masked_input(self, batch):
-        for tokens in batch["tokens"]["tokens"]:
+        masked_batch = copy.deepcopy(batch)
+        for tokens in masked_batch["tokens"]["tokens"]:
             t_l = len(tokens)
             i = t_l - 1
             while i >= 0:
-                if tokens[i] != self.indexer.tokeniser.pad_token_id:
+                aux = tokens[i].item()
+                if aux != self.indexer.tokeniser.sep_token_id and aux != self.indexer.tokeniser.eos_token_id \
+                        and aux != self.indexer.tokeniser.pad_token_id:
                     break
                 i -= 1
 
-            integers_to_mask = random.choice(list(range(0, i + 1)), int(self.mask_rate * i), replace=False)
+            integers_to_mask = random.choice(list(range(1, i + 1)), int(self.mask_rate * i), replace=False)
             tokens[integers_to_mask] = self.indexer.mask_token_id
+        return masked_batch
+
+    def mask_target_token(self, batch, metadata_list):
+        tokens = batch["tokens"]
+        tokens_offsets = batch["tokens-offsets"]
+        for indices, token_mapping, ml in zip(tokens, tokens_offsets, metadata_list):
+            seg_indices = token_mapping[[x for x, _ in ml["indices"]]]
+            indices[seg_indices] = self.indexer.tokeniser.mask_token_id
 
     def score_sentences(self, dataset_path: str, output_path: str):
         raw_data_generator = self.iterator(self.dataset.read(dataset_path),
@@ -45,10 +58,13 @@ class SentenceScorer(object):
             for batch in tqdm(raw_data_generator):
                 input_dict = batch["tokens"]
                 if not "gpt2" in self.model_name:
-                    self.prepare_masked_input(batch)
+                    orig_input_dict = copy.deepcopy(input_dict)
+                    self.mask_target_token(input_dict, batch["metadata"])
                 batch = nn_util.move_to_device(batch, 0)
                 with torch.no_grad():
                     out_dict = self.model(**batch)
+                if not "gpt2" in self.model_name:
+                    input_dict = orig_input_dict
                 all_logits = out_dict["scores"]
                 metadata_list = batch["metadata"]
                 token_mapping = input_dict["tokens-offsets"]
@@ -95,8 +111,8 @@ class SentenceScorer(object):
 
 
 if __name__ == "__main__":
-    # scorer = SentenceScorer("xlm-mlm-100-1280", one_elem_per_word=True)
-    scorer = SentenceScorer("gpt2")
-    dataset_path = "data/wikipedia_sentences/wiki.en.cleanSplitSent.pasini.txt.idx.gz"
+    scorer = SentenceScorer("xlm-mlm-100-1280", one_elem_per_word=True)
+    # scorer = SentenceScorer("gpt2")
+    dataset_path = "data/wikipedia_sentences/wiki.it.cleanSplitSent.pasini.txt.idx.gz"
     output_path = "data/test.txt"
     scorer.score_sentences(dataset_path, output_path)
