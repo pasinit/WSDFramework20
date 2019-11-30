@@ -72,7 +72,6 @@ def evaluate_datasets(dataset_paths: List[str],
         print("{}: precision: {}, recall: {}, f1: {}, precision_mfs: {}, recall_mfs: {}, f1_mfs:{}".format(name, *[metrics[x]
                                                                                                                    for x in ["precision", "recall", "f1", "p_mfs", "recall_mfs", "f1_mfs"]]))
         lines.append([metrics["precision"], metrics["recall"], metrics["f1"], metrics["f1_mfs"]])
-        break
     print("SUMMARY:")
     # d = DataFrame.from_dict(all_metrics).transpose()
     d = DataFrame(lines, columns=["Precision", "Recall", "F1", "F1_MFS"], index=names)
@@ -144,10 +143,10 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", default="config/config_en_semcor_sensekey.yaml")
-    parser.add_argument("--checkpoint_path",
-                        default="data/models/en_semcor_sensekeys_mfs/bert-large-cased/checkpoints/model_state_epoch_20.th")
-    parser.add_argument("--output_path", default="data/models/en_semcor_sensekeys_mfs/bert-large-cased/evaluation/")
+    parser.add_argument("--config", required=True)#default="config/config_en_semcor_sensekey.yaml")
+    parser.add_argument("--checkpoint_path", required=True)
+#                        default="data/models/en_semcor_sensekeys_mfs/bert-large-cased/checkpoints/model_state_epoch_20.th")
+    parser.add_argument("--output_path", required=True)#default="data/models/en_semcor_sensekeys_mfs/bert-large-cased/evaluation/")
 
     args = parser.parse_args()
     main(args)
