@@ -1,24 +1,24 @@
 data:
   langs:
-    - es
+    - fr 
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
-    - data/training_data/multilingual_training_data/onesec+translated_semcor+babel_glosses/es/onesec_es+semcor_es+babelgloss_es.filter.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+    - data/training_data/multilingual_training_data/onesec+translated_semcor+babel_glosses/it/onesec_it+semcor_it+babelgloss_it.filter.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
   sense_inventory: babelnet
   label_from: training
   gold_id_separator: " "
-  outpath: data/models/es_s+g+o
+  outpath: data/models/it_s+g+o
   mfs_file:
   test_names:
-    - semeval2013_es
-    - semeval2015_es
-    - dev_es
+    - semeval2013_it
+    - semeval2015_it
+    - dev_it
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
 
 model:
-  device: cpu
+  device: cuda 
   model_name: bert-base-multilingual-cased
   learning_rate: 1e-4
 

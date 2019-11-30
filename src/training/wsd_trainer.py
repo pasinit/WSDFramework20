@@ -59,6 +59,7 @@ def main(args):
     label_from = data_config["label_from"]
     max_sentence_token = data_config["max_sentence_token"]
     max_segments_in_batch = data_config["max_segments_in_batch"]
+    dev_name = data_config.get("dev_name", None)
     mfs_file = data_config.get("mfs_file", None)
     sliding_window = data_config["sliding_window"]
     device = model_config["device"]
@@ -66,6 +67,9 @@ def main(args):
     learning_rate = float(model_config["learning_rate"])
     num_epochs = training_config["num_epochs"]
     wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, ",".join(langs)])
+    if dev_name is None:
+        logger.warning("No dev name set... In this way I won't save in best.th the best model according to the "
+                       "development set. best.th will contain the weights of the model at its last epoch")
     device_int = 0 if device == "cuda" else -1
     test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
     training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
@@ -88,7 +92,8 @@ def main(args):
 
     else:
         raise RuntimeError(
-            "%s label_from has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnids}" % (label_from))
+            "%s label_from has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnids}" % (
+                label_from))
 
     reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
                                                                          sliding_window=sliding_window,
@@ -99,7 +104,8 @@ def main(args):
                                                                          sense_inventory=sense_inventory,
                                                                          mfs_file=mfs_file)
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
-                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary, cache_vectors=True)
+                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
+                                                   cache_vectors=True)
     logger.info("loading training data...")
     train_ds = reader.read(training_paths)
     #####################################################
@@ -114,7 +120,7 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-        # instances_per_epoch=10
+        #instances_per_epoch=10
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
@@ -127,11 +133,13 @@ def main(args):
     writers = [WSDOutputWriter(os.path.join(outpath, "predictions", name + ".predictions.txt"), label_vocab.itos) for
                name
                in test_names]
-    callbacks = [ValidateAndWrite(data, valid_iterator, output_writer=writer, name=name, wandb=True) for
+    callbacks = [ValidateAndWrite(data, valid_iterator, output_writer=writer, name=name, wandb=True,
+                                  is_dev=name == dev_name if dev_name is not None else False) for
                  name, data, writer in zip(
             test_names, tests_dss, writers)]
     callbacks.append(WanDBTrainingCallback())
-    callbacks.append(MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"))))
+    callbacks.append(
+        MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"), num_serialized_models_to_keep=100)))
 
     trainer = MyCallbackTrainer(model=model,
                                 optimizer=optim.Adam(model.parameters(), lr=learning_rate),
@@ -140,7 +148,9 @@ def main(args):
                                 num_epochs=num_epochs,
                                 training_data=train_ds,
                                 callbacks=callbacks,
-                                shuffle=True
+                                shuffle=True,
+                                track_dev_metrics=True,
+                                metric_name="f1_mfs"
                                 )
     trainer.train()
     with open(os.path.join(outpath, "last_model.th"), "wb") as writer:
@@ -149,10 +159,10 @@ def main(args):
         pkl.dump(label_vocab, writer)
 
 
-# os.environ["WANDB_MODE"] = "dryrun"
+#os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", default="config/config_es_s+g+o.yaml")
+    parser.add_argument("--config", required=True)#default="config/config_es_s+g+o.yaml")
     parser.add_argument("--dryrun", action="store_true")
     args = parser.parse_args()
     if args.dryrun:

@@ -20,6 +20,7 @@ data:
     - semeval2015
     - ALL
     - ALL_no_semeval2007
+  dev_name: semeval2007
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
@@ -30,7 +31,7 @@ model:
   learning_rate: 1e-4
 
 training:
-  num_epochs: 40
+  num_epochs: 25 
 
 #wandb:
 #  tags:
