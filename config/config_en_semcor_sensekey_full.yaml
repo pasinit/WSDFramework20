@@ -8,8 +8,8 @@ data:
   sense_inventory: sensekey
   label_from: sensekeys 
   gold_id_separator: " "
-  outpath: data/models/en_semcor_sensekeys_full_mfs/
-  mfs_file: resources/mfs/mfs_wn.en.wnkeys.txt
+  outpath: data/models/en_semcor_sensekeys_full/
+  mfs_file: 
   test_names:
     - senseval2
     - senseval3

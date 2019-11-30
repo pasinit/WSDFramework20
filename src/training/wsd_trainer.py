@@ -120,6 +120,10 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
+<<<<<<< HEAD
+        #instances_per_epoch=10
+=======
+>>>>>>> aeaa23277e2054e5a74fb53b17a2e4864b231581
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
@@ -161,7 +165,11 @@ def main(args):
 os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
+<<<<<<< HEAD
+    parser.add_argument("--config", required=True)#default="config/config_es_s+g+o.yaml")
+=======
     parser.add_argument("--config", default="config/config_en_semcor_sensekey.yaml")
+>>>>>>> aeaa23277e2054e5a74fb53b17a2e4864b231581
     parser.add_argument("--dryrun", action="store_true")
     args = parser.parse_args()
     if args.dryrun:
