@@ -59,6 +59,7 @@ def main(args):
     label_from = data_config["label_from"]
     max_sentence_token = data_config["max_sentence_token"]
     max_segments_in_batch = data_config["max_segments_in_batch"]
+    dev_name = data_config.get("dev_name", None)
     mfs_file = data_config.get("mfs_file", None)
     sliding_window = data_config["sliding_window"]
     device = model_config["device"]
@@ -66,6 +67,9 @@ def main(args):
     learning_rate = float(model_config["learning_rate"])
     num_epochs = training_config["num_epochs"]
     wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, ",".join(langs)])
+    if dev_name is None:
+        logger.warning("No dev name set... In this way I won't save in best.th the best model according to the "
+                       "development set. best.th will contains the weights of the model at its last epoch")
     device_int = 0 if device == "cuda" else -1
     test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
     training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
@@ -128,7 +132,8 @@ def main(args):
     writers = [WSDOutputWriter(os.path.join(outpath, "predictions", name + ".predictions.txt"), label_vocab.itos) for
                name
                in test_names]
-    callbacks = [ValidateAndWrite(data, valid_iterator, output_writer=writer, name=name, wandb=True, is_dev=name=="semeval2007") for
+    callbacks = [ValidateAndWrite(data, valid_iterator, output_writer=writer, name=name, wandb=True,
+                                  is_dev=name == dev_name if dev_name is not None else False) for
                  name, data, writer in zip(
             test_names, tests_dss, writers)]
     callbacks.append(WanDBTrainingCallback())
