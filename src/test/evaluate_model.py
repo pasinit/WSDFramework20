@@ -142,7 +142,10 @@ def main(args):
     if args.test_path is None:
         test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
     else:
-        test_paths = args.test_path
+        if len(args.test_path) == 1 and os.path.isdir(args.test_path[0]):
+            test_paths = [os.path.join(args.test_path[0], p) for p in os.listdir(args.test_path[0]) if "data.xml" in p]
+        else:
+            test_paths = args.test_path
     training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
     outpath = os.path.join(outpath, model_name)
     token_indexer = PretrainedBertIndexer(
