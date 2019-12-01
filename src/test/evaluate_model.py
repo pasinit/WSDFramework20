@@ -69,7 +69,7 @@ def evaluate_datasets(dataset_paths: List[str],
     names = list()  # [dataset_path.split("/")[-1].split(".")[0] for dataset_path in dataset_paths]
     lines = list()
     for dataset_path in dataset_paths:
-        name = dataset_path.split("/")[-1].split(".")[0]
+        name = dataset_path.split("/")[-1]#.split(".")[0]
         names.append(name)
         metrics = evaluate(dataset_reader, dataset_path, model, os.path.join(output_path, name + ".predictions.txt"),
                            label_vocab, use_mfs, mfs_dictionary)
@@ -86,7 +86,6 @@ def evaluate_datasets(dataset_paths: List[str],
                                                                                                                  "recall_mfs",
                                                                                                                  "f1_mfs"]]))
         lines.append([metrics["precision"], metrics["recall"], metrics["f1"], metrics.get("f1_mfs", -1)])
-        break
     print("SUMMARY:")
     # d = DataFrame.from_dict(all_metrics).transpose()
     d = DataFrame(lines, columns=["Precision", "Recall", "F1", "F1_MFS"], index=names)
@@ -143,7 +142,7 @@ def main(args):
     if args.test_path is None:
         test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
     else:
-        test_paths = [args.test_path]
+        test_paths = args.test_path
     training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
     outpath = os.path.join(outpath, model_name)
     token_indexer = PretrainedBertIndexer(
@@ -187,6 +186,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint_path", required=True)
     parser.add_argument("--output_path", required=True)
-    parser.add_argument("--test_path", default=None, type=list, nargs="+")
+    parser.add_argument("--test_path", default=None, nargs="+")
     args = parser.parse_args()
+    print(args)
     main(args)
