@@ -14,3 +14,4 @@ wandb/
 *.log
 data/
 wsdframework_env/
+xlm_fr_log.txt
