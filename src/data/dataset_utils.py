@@ -36,7 +36,7 @@ def get_wnkeys2wnoffset():
             fields = line.strip().split(" ")
             key = fields[0].replace("%5", "%3")
             pos = get_pos_from_key(key)
-            key2offset[key] = fields[1] +  pos
+            key2offset[key] = [fields[1] +  pos]
     return key2offset
 
 
