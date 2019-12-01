@@ -1,14 +1,14 @@
 data:
   langs:
-    - en
-  #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
+   - en
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
-    - data/training_data/en_training_data/semcor/semcor.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
-  sense_inventory: wnoffset 
-  label_from: training 
+    - data/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_manual.data.xml
+
   gold_id_separator: " "
-  outpath: data/models/en_semcor_wnoffsets_training/
+  outpath: data/models/en_semcor_gloss_manual_wnoffsets_training/
+  label_from: training
+  sense_inventory: wnoffset 
   mfs_file: resources/mfs/mfs_wn.en.wnoffset.txt
   test_names:
     - senseval2
@@ -26,14 +26,14 @@ data:
   max_segments_in_batch: 2000
 
 model:
-  device: cuda 
+  device: cuda
   model_name: bert-large-cased
   learning_rate: 1e-4
 
 training:
-  num_epochs: 25 
+  num_epochs: 25
 
 #wandb:
 #  tags:
+#    - en
 #    - bert-large-cased
-#    - sensekey
