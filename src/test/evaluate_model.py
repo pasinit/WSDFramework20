@@ -8,6 +8,7 @@ from allennlp.predictors import SentenceTaggerPredictor
 from allennlp.tests.commands.evaluate_test import DummyIterator
 from argparse import ArgumentParser
 
+from allennlp.training import Trainer
 from pandas import DataFrame
 from torchtext.data import BucketIterator
 from tqdm import tqdm
