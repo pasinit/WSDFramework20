@@ -308,7 +308,7 @@ class AllenWSDDatasetReader(DatasetReader):
         fields["label_ids"] = label_field
         fields["labels"] = MetadataField([ls for ls in labels if len(ls) > 0])
 
-        labeled_token_indices = np.array([i for i, l in enumerate(labels) if l != ""],
+        labeled_token_indices = np.array([i for i, l in enumerate(labels) if len(l) > 0],
                                          dtype=np.int64)  # np.argwhere(labels != "").flatten().astype(np.int64)
         fields["labeled_token_indices"] = MetadataField(labeled_token_indices)
 
