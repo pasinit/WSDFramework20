@@ -63,13 +63,14 @@ def evaluate_datasets(dataset_paths: List[str],
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
                                                    cache_vectors=True, return_full_output=True)
-    model.load_state_dict(torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
+    model.load_state_dict(
+        torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
     model.eval()
     all_metrics = dict()
     names = list()  # [dataset_path.split("/")[-1].split(".")[0] for dataset_path in dataset_paths]
     lines = list()
     for dataset_path in dataset_paths:
-        name = dataset_path.split("/")[-1]#.split(".")[0]
+        name = dataset_path.split("/")[-1]  # .split(".")[0]
         names.append(name)
         metrics = evaluate(dataset_reader, dataset_path, model, os.path.join(output_path, name + ".predictions.txt"),
                            label_vocab, use_mfs, mfs_dictionary)
@@ -77,14 +78,18 @@ def evaluate_datasets(dataset_paths: List[str],
             {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
              "f1_mfs": metrics.get("f1_mfs", None)})
         print("{}: precision: {}, recall: {}, f1: {}, precision_mfs: {}, recall_mfs: {}, f1_mfs:{}".format(name,
-                                                                                                           *[metrics.get(x, -1)
-                                                                                                             for x in [
-                                                                                                                 "precision",
-                                                                                                                 "recall",
-                                                                                                                 "f1",
-                                                                                                                 "p_mfs",
-                                                                                                                 "recall_mfs",
-                                                                                                                 "f1_mfs"]]))
+                                                                                                           *[
+                                                                                                               metrics.get(
+                                                                                                                   x,
+                                                                                                                   -1)
+                                                                                                               for x in
+                                                                                                               [
+                                                                                                                   "precision",
+                                                                                                                   "recall",
+                                                                                                                   "f1",
+                                                                                                                   "p_mfs",
+                                                                                                                   "recall_mfs",
+                                                                                                                   "f1_mfs"]]))
         lines.append([metrics["precision"], metrics["recall"], metrics["f1"], metrics.get("f1_mfs", -1)])
     print("SUMMARY:")
     # d = DataFrame.from_dict(all_metrics).transpose()
@@ -176,12 +181,41 @@ def main(args):
                                                                          training_data_xmls=training_paths,
                                                                          sense_inventory=sense_inventory,
                                                                          mfs_file=mfs_file, )
-    # get_best_checkpoint(os.path.join(test_data_root, "semeval2007.data.xml"), reader, checkpoint_path, model_name,
-    #                     label_vocab, lemma2synsets, device_int,
-    #                     mfs_dictionary, mfs_dictionary is not None, args.output_path
-    #                     )
+    if args.find_best is True:
+        epoch = get_best_checkpoint(args.dev_set, reader, checkpoint_path, model_name,
+                                    label_vocab, lemma2synsets, device_int,
+                                    mfs_dictionary, args.output_path, mfs_dictionary is not None
+                                    )
+        checkpoint_path = os.path.join(checkpoint_path, "model_state_epoch_{}.th".format(epoch))
     evaluate_datasets(test_paths, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
                       mfs_dictionary, mfs_dictionary is not None, args.output_path)
+
+
+def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
+                        mfs_dictionary, output_path, use_mfs, metric_to_track="f1_mfs"):
+    model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
+                                                   label_vocab,
+                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
+                                                   cache_vectors=True, return_full_output=True)
+    num_checkpoints = len([x for x in os.listdir(checkpoint_path) if "model_state_epoch" in x])
+    best_epoch = -1
+    best_metric = -1
+    for epoch in range(num_checkpoints):
+        fname = "model_state_epoch_{}.th".format(epoch)
+        model.load_state_dict(
+            torch.load(os.path.join(checkpoint_path, fname),
+                       map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
+        model.eval()
+        name = path.split("/")[-1]
+        metrics = evaluate(reader, path, model,
+                           os.path.join(output_path, name + ".predictions.txt"),
+                           label_vocab, use_mfs, mfs_dictionary)
+        val = metrics[metric_to_track]
+        if val > best_metric:
+            best_epoch = epoch
+            best_metric = val
+            print("new best: epoch {}, {}: {}".format(epoch, metric_to_track, val))
+    return best_epoch
 
 
 if __name__ == "__main__":
@@ -190,6 +224,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_path", required=True)
     parser.add_argument("--output_path", required=True)
     parser.add_argument("--test_path", default=None, nargs="+")
+    parser.add_argument("--find_best", action="store_true", default=False)
+    parser.add_argument("--dev_set", default=None, type=str)
     args = parser.parse_args()
-    print(args)
     main(args)

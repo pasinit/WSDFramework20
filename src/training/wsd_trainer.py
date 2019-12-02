@@ -109,6 +109,7 @@ def main(args):
                                                    cache_vectors=True)
     logger.info("loading training data...")
     train_ds = reader.read(training_paths)
+
     #####################################################
     # NEDED so to not split sentences in the test data. #
     reader.max_sentence_len = 200
@@ -121,7 +122,7 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-        # instances_per_epoch=1
+        instances_per_epoch=1
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
@@ -140,7 +141,8 @@ def main(args):
             test_names, tests_dss, writers)]
     callbacks.append(WanDBTrainingCallback())
     callbacks.append(
-        MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"), num_serialized_models_to_keep=100), autoload_last_checkpoint=args.reload_checkpoint))
+        MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"), num_serialized_models_to_keep=100),
+                     autoload_last_checkpoint=args.reload_checkpoint))
 
     trainer = MyCallbackTrainer(model=model,
                                 optimizer=optim.Adam(model.parameters(), lr=learning_rate),
@@ -163,7 +165,7 @@ def main(args):
 # os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", required=True)  # default="config/config_es_s+g+o.yaml")
+    parser.add_argument("--config", required=True) # default="config/config_es_s+g+o.yaml")
     parser.add_argument("--dryrun", action="store_true")
     parser.add_argument("--reload_checkpoint", action="store_true", default=False)
     args = parser.parse_args()

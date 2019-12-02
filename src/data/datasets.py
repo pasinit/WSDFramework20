@@ -128,7 +128,7 @@ class AllenWSDDatasetReader(DatasetReader):
                  label_vocab: LabelVocabulary = None, lemma2synsets=None,
                  key2goldid: Dict[str, str] = None, max_sentence_len: int = 64,
                  sliding_window_size: int = 32, gold_key_id_separator=" ", **kwargs):
-        super().__init__(lazy=False)
+        super().__init__(lazy=True)
         assert token_indexers is not None and label_vocab is not None and lemma2synsets is not None
         self.tokenizer = tokenizer
         self.token_indexers = token_indexers
