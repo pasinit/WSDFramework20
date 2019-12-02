@@ -95,6 +95,7 @@ def main(args):
             "%s label_from has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnids}" % (
                 label_from))
 
+    print("loading dataset")
     reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
                                                                          sliding_window=sliding_window,
                                                                          max_sentence_token=max_sentence_token,
@@ -120,7 +121,7 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-        instances_per_epoch=1
+        # instances_per_epoch=1
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
@@ -139,7 +140,7 @@ def main(args):
             test_names, tests_dss, writers)]
     callbacks.append(WanDBTrainingCallback())
     callbacks.append(
-        MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"), num_serialized_models_to_keep=100)))
+        MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"), num_serialized_models_to_keep=100), autoload_last_checkpoint=args.reload_checkpoint))
 
     trainer = MyCallbackTrainer(model=model,
                                 optimizer=optim.Adam(model.parameters(), lr=learning_rate),
@@ -159,11 +160,12 @@ def main(args):
         pkl.dump(label_vocab, writer)
 
 
-#os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", required=True)#default="config/config_es_s+g+o.yaml")
+    parser.add_argument("--config", required=True)  # default="config/config_es_s+g+o.yaml")
     parser.add_argument("--dryrun", action="store_true")
+    parser.add_argument("--reload_checkpoint", action="store_true", default=False)
     args = parser.parse_args()
     if args.dryrun:
         os.environ["WANDB_MODE"] = "dryrun"

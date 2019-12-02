@@ -23,9 +23,6 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 WORDNE_DICT_PATH = "/opt/WordNet-3.0/dict/index.sense"
 
-WORDNE_DICT_PATH = "/opt/WordNet-3.0/dict/index.sense"
-
-
 def load_bn_offset2bnid_map(path):
     offset2bnid = dict()
     with open(path) as lines:
@@ -224,6 +221,7 @@ class AllenWSDDatasetReader(DatasetReader):
     #     return goldid
 
     def load_gold_file(self, gold_file):
+        print("loading gold file")
         key2gold = dict()
         with open(gold_file) as lines:
             for line in lines:
@@ -238,8 +236,9 @@ class AllenWSDDatasetReader(DatasetReader):
         return key2gold
 
     def load_xml(self, tokid2gold, file_path):
-        root = etree.parse(file_path)
-        for sentence in root.findall("./text/sentence"):
+        #root = etree.parse(file_path)
+        print("loading xml")
+        for _, sentence in etree.iterparse(file_path, events=("start",), tag="sentence"):
             words = list()
             lemmaposs = list()
             ids = list()
