@@ -26,7 +26,7 @@ data:
   max_segments_in_batch: 2000
 
 model:
-  device: cuda 
+  device: cpu 
   model_name: bert-base-cased
   learning_rate: 1e-4
 
