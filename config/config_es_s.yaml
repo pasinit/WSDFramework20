@@ -3,7 +3,7 @@ data:
     - es
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
-    - data/training_data/multilingual_training_data/translated_semcor+babel_glosses/es/semcor.es.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+    - data/training_data/multilingual_training_data/translated_semcor/es/semcor.es.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
   sense_inventory: babelnet
   label_from: training
   gold_id_separator: " "
