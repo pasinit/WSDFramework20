@@ -10,6 +10,7 @@ data:
   gold_id_separator: " "
   outpath: data/models/en_s+g+o
   mfs_file: resources/mfs/mfs_wn.en.bnids.txt
+  lazy: True
   test_names:
     - senseval2
     - senseval3

@@ -41,7 +41,7 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                 writer.write(
                     "\n".join(["{} {}".format(id, label_vocab.itos[p]) for id, p in zip(i_ids, i_predictions)]))
                 writer.write("\n")
-                mfs_preds = [mfs_vocab[lp] if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p] for lp, p in
+                mfs_preds = [mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p] for lp, p in
                              zip(lemmapos, i_predictions)]
                 mfs_writer.write(
                     "\n".join(["{} {}".format(id, p) for id, p in zip(i_ids, mfs_preds)]))
