@@ -1,9 +1,4 @@
-import xml.etree.ElementTree as ET
-import lxml.etree as etree
-
-from src.data.dataset_utils import get_pos_from_key, get_universal_pos
 import os
-
 
 def print_mfs_info(non_mfs_predictions):
     mfs_predictions = non_mfs_predictions.replace(".txt", ".mfs.txt")
@@ -26,7 +21,7 @@ def print_mfs_info_by_folder(folder):
     for f in os.listdir(folder):
         if f.endswith(".predictions.txt"):
             print_mfs_info(os.path.join(folder, f))
-print_mfs_info_by_folder("data2/models/en_semcor_gloss_manual_wnoffsets_training/bert-large-cased/evaluation/")
+print_mfs_info_by_folder("data/models/en_semcor_sensekeys_mfs/bert-base-cased/evaluation/")
 # print_mfs_info("data/models/en_semcor_gloss_manual_bert_large/bert-large-cased/evaluation/ALL.data.xml.predictions.txt")
 exit(0)
 

@@ -10,10 +10,14 @@ data:
   outpath: data/models/de_s+g
   mfs_file: resources/mfs/mfs_bn.de.bnids.txt
   test_names:
-    - semeval2015_de
+    - wiki_dev_de
+    - wiki_test_de
+    - semeval2013_de
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
+  dev_name: wiki_dev_de
+
 
 model:
   device: cuda 

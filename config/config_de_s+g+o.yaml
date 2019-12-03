@@ -2,7 +2,7 @@ data:
   langs:
     - de 
       #test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
-  test_data_root: /home/tommaso/new_new_test/
+  test_data_root: /home/tommaso/new_tests/
   train_data_root:
     - data/training_data/multilingual_training_data/onesec+translated_semcor+babel_glosses/de/onesec_de+semcor_de+babelgloss_de.filter.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
   sense_inventory: babelnet
