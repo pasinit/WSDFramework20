@@ -14,3 +14,6 @@ wandb/
 *.log
 data/
 wsdframework_env/
+xlm_fr_log.txt
+data2/models
+data2

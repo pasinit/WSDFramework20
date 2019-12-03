@@ -1,7 +1,7 @@
 from typing import Dict
 
 from lxml import etree
-
+from tqdm import tqdm
 from src.data.dataset_utils import get_pos_from_key, get_simplified_pos
 
 
@@ -37,15 +37,17 @@ class Lemma2Synsets(dict):
     def from_corpus_xml(corpus_path, gold_transformer=lambda v: v):
         key_path = corpus_path.replace("data.xml", "gold.key.txt")
         key2gold = Lemma2Synsets.load_keys(key_path)
-        root = etree.parse(corpus_path).getroot()
+        #root = etree.parse(corpus_path).getroot()
+        print("loading lemma 2 gold")
         lemmapos2gold = dict()
-        for instance in root.findall("./text/sentence/instance"):
+        for _, instance in tqdm(etree.iterparse(corpus_path,tag="instance", events=("start",))):
             tokenid = instance.attrib["id"]
             lemmapos = instance.attrib["lemma"].lower() + "#" + get_simplified_pos(instance.attrib["pos"])
             lemmapos2gold[lemmapos] = lemmapos2gold.get(lemmapos, set())
             lemmapos2gold[lemmapos].add(key2gold[tokenid].replace("%5", "%3"))
         for lemmapos, golds in lemmapos2gold.items():
             lemmapos2gold[lemmapos] = set(filter(lambda x: x is not None, [gold_transformer(g) for g in golds]))
+        print("lemma 2 gold loaded")
         return Lemma2Synsets(data=lemmapos2gold)
 
     @staticmethod

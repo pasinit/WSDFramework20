@@ -204,11 +204,13 @@ class WSDF1(Metric):
     def compute_metrics_mfs(self, lemmapos, predictions, labels):
         for lp, p, l in zip(lemmapos, predictions, labels):
             self.tot_mfs += 1
-            self.answers_mfs += 1
+
             if p == self.unk_id:
                 p = self.mfs_vocab.get(lp, p)
             else:
                 p = self.label_vocab.get_string(p)
+            if p != self.unk_id:
+                self.answers_mfs += 1
             if p in l:
                 self.correct_mfs += 1
 

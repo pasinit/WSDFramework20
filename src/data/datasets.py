@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 WORDNE_DICT_PATH = "/opt/WordNet-3.0/dict/index.sense"
 
-WORDNE_DICT_PATH = "/opt/WordNet-3.0/dict/index.sense"
-
 
 def load_bn_offset2bnid_map(path):
     offset2bnid = dict()
@@ -130,8 +128,10 @@ class AllenWSDDatasetReader(DatasetReader):
                  token_indexers: Dict[str, TokenIndexer] = None,
                  label_vocab: LabelVocabulary = None, lemma2synsets=None,
                  key2goldid: Dict[str, str] = None, max_sentence_len: int = 64,
-                 sliding_window_size: int = 32, gold_key_id_separator=" ", **kwargs):
-        super().__init__(lazy=False)
+                 sliding_window_size: int = 32, gold_key_id_separator=" ",
+                 lazy=False,
+                 **kwargs):
+        super().__init__(lazy=lazy)
         assert token_indexers is not None and label_vocab is not None and lemma2synsets is not None
         self.tokenizer = tokenizer
         self.token_indexers = token_indexers
@@ -224,6 +224,7 @@ class AllenWSDDatasetReader(DatasetReader):
     #     return goldid
 
     def load_gold_file(self, gold_file):
+        print("loading gold file")
         key2gold = dict()
         with open(gold_file) as lines:
             for line in lines:
@@ -238,8 +239,9 @@ class AllenWSDDatasetReader(DatasetReader):
         return key2gold
 
     def load_xml(self, tokid2gold, file_path):
-        root = etree.parse(file_path)
-        for sentence in root.findall("./text/sentence"):
+        # root = etree.parse(file_path)
+        print("loading xml")
+        for _, sentence in etree.iterparse(file_path, events=("start",), tag="sentence"):
             words = list()
             lemmaposs = list()
             ids = list()
@@ -248,13 +250,15 @@ class AllenWSDDatasetReader(DatasetReader):
                 if elem.text is None:
                     continue
                 words.append(Token(elem.text))
-                lemmaposs.append(elem.attrib["lemma"].lower() + "#" + get_simplified_pos(elem.attrib["pos"]))
-                if elem.tag == "wf":
+
+                if elem.tag == "wf" or elem.attrib["id"] not in tokid2gold:
                     ids.append(None)
                     labels.append("")
+                    lemmaposs.append("")
                 else:
                     ids.append(elem.attrib["id"])
                     labels.append(tokid2gold[elem.attrib["id"]])
+                    lemmaposs.append(elem.attrib["lemma"].lower() + "#" + get_simplified_pos(elem.attrib["pos"]))
 
             if len(words) > self.max_sentence_len:
                 for w_window, lp_window, iis_window, ls_window in self.sliding_window(words, lemmaposs, ids, labels):
@@ -309,7 +313,7 @@ class AllenWSDDatasetReader(DatasetReader):
         fields["label_ids"] = label_field
         fields["labels"] = MetadataField([ls for ls in labels if len(ls) > 0])
 
-        labeled_token_indices = np.array([i for i, l in enumerate(labels) if l != ""],
+        labeled_token_indices = np.array([i for i, l in enumerate(labels) if len(l) > 0],
                                          dtype=np.int64)  # np.argwhere(labels != "").flatten().astype(np.int64)
         fields["labeled_token_indices"] = MetadataField(labeled_token_indices)
 
@@ -384,7 +388,8 @@ class AllenWSDDatasetReader(DatasetReader):
         for l2s in lemma2synsetslist:
             for lemma, synsets in l2s.items():
                 all_classes = lemma2classes.get(lemma, set())
-                all_classes.update([label_vocab.get_idx(y) for x in synsets for y in (key_mapper.get(x, [x]) if key_mapper else [x])])
+                all_classes.update(
+                    [label_vocab.get_idx(y) for x in synsets for y in (key_mapper.get(x, [x]) if key_mapper else [x])])
                 lemma2classes[lemma] = all_classes
         lemma2classes = Lemma2Synsets(data=lemma2classes)
         return AllenWSDDatasetReader.get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
@@ -397,7 +402,9 @@ class AllenWSDDatasetReader(DatasetReader):
         mfs = dict()
         with open(mfs_file) as lines:
             for line in lines:
-                fields = line.strip().split("\t")
+                fields = line.strip().lower().split("\t")
+                if len(fields) < 2:
+                    continue
                 mfs[fields[0].lower()] = fields[1].replace("%5", "%3")
         return mfs
 
@@ -443,7 +450,8 @@ class AllenWSDDatasetReader(DatasetReader):
     def get_sensekey_dataset(indexers: Dict[str, Any], sliding_window=32, max_sentence_token=64, gold_id_separator=" ",
                              langs=None, mfs_file=None, **kwargs):
         if langs is not None:
-            logger.warning("[get_sensekey_dataset]: the argument langs: {} is ignored by this method.".format(",".join(langs)))
+            logger.warning(
+                "[get_sensekey_dataset]: the argument langs: {} is ignored by this method.".format(",".join(langs)))
         lemma2synsets = Lemma2Synsets.sensekey_from_wn_sense_index()
         label_vocab = LabelVocabulary.wn_sensekey_vocabulary()
         for key, synsets in lemma2synsets.items():
@@ -461,6 +469,8 @@ class Config(dict):
     def set(self, key, val):
         self[key] = val
         setattr(self, key, val)
+
+
 if __name__ == "__main__":
     label_vocab = LabelVocabulary.vocabulary_from_gold_key_file(
         "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt")
