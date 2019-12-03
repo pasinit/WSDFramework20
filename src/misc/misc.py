@@ -26,7 +26,7 @@ def print_mfs_info_by_folder(folder):
     for f in os.listdir(folder):
         if f.endswith(".predictions.txt"):
             print_mfs_info(os.path.join(folder, f))
-print_mfs_info_by_folder("data/models/en_semcor_sensekeys_mfs/bert-large-cased/evaluation/")
+print_mfs_info_by_folder("data2/models/en_semcor_gloss_manual_wnoffsets_training/bert-large-cased/evaluation/")
 # print_mfs_info("data/models/en_semcor_gloss_manual_bert_large/bert-large-cased/evaluation/ALL.data.xml.predictions.txt")
 exit(0)
 
