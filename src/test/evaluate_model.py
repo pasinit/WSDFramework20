@@ -27,7 +27,8 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
     f1_computer = WSDF1(label_vocab, use_mfs, mfs_vocab)
     predictor = SentenceTaggerPredictor(model, dataset_reader)
     batches = [x for x in iterator._create_batches(dataset_reader.read(dataset_path), False)]
-    with open(output_path, "w") as writer, open(output_path.replace(".txt", ".mfs.txt"), "w") as mfs_writer:
+    with open(output_path, "w") as writer, open(output_path.replace(".txt", ".mfs.txt"), "w") as mfs_writer, \
+            open(output_path.replace(".txt", ".mfs.info.txt"), "w") as mfs_info_writer:
         for batch in tqdm(batches):
             outputs = predictor.predict_batch_instance(batch.instances)
             ids = [prediction["ids"] for prediction in outputs]
@@ -41,10 +42,16 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                 writer.write(
                     "\n".join(["{} {}".format(id, label_vocab.itos[p]) for id, p in zip(i_ids, i_predictions)]))
                 writer.write("\n")
-                mfs_preds = [mfs_vocab[lp] if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p] for lp, p in
+                mfs_preds = [mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p] for
+                             lp, p in
                              zip(lemmapos, i_predictions)]
                 mfs_writer.write(
                     "\n".join(["{} {}".format(id, p) for id, p in zip(i_ids, mfs_preds)]))
+                for id, lp, p in zip(i_ids, lemmapos, i_predictions):
+                    is_mfs = label_vocab.itos[p] == "<unk>"
+                    pred = mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
+                    mfs_writer.write("{} {} {}".format(id, pred, "MFS" if is_mfs else ""))
+
                 mfs_writer.write("\n")
 
         metric = f1_computer.get_metric(True)
@@ -188,6 +195,7 @@ def main(args):
                                     mfs_dictionary, args.output_path, mfs_dictionary is not None
                                     )
         checkpoint_path = os.path.join(checkpoint_path, "model_state_epoch_{}.th".format(epoch))
+        print("best checpoint: {}".format(checkpoint_path))
     evaluate_datasets(test_paths, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
                       mfs_dictionary, mfs_dictionary is not None, args.output_path)
 

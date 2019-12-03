@@ -103,7 +103,8 @@ def main(args):
                                                                          langs=langs,
                                                                          training_data_xmls=training_paths,
                                                                          sense_inventory=sense_inventory,
-                                                                         mfs_file=mfs_file)
+                                                                         mfs_file=mfs_file,
+                                                                         lazy=data_config.get("lazy", False))
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
                                                    cache_vectors=True)
@@ -165,7 +166,7 @@ def main(args):
 # os.environ["WANDB_MODE"] = "dryrun"
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--config", required=True) # default="config/config_es_s+g+o.yaml")
+    parser.add_argument("--config", required=True)  # default="config/config_es_s+g+o.yaml")
     parser.add_argument("--dryrun", action="store_true")
     parser.add_argument("--reload_checkpoint", action="store_true", default=False)
     args = parser.parse_args()

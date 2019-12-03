@@ -7,10 +7,12 @@ data:
   sense_inventory: babelnet
   label_from: training
   gold_id_separator: " "
-  outpath: data/models/de_s+g
+  outpath: data/models/de_s
   mfs_file: resources/mfs/mfs_bn.de.bnids.txt
   test_names:
-    - semeval2015_de
+    - wiki_dev_de
+    - wiki_test_de
+    - semeval2013_de_filter
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000

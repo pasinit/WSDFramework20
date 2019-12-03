@@ -9,17 +9,13 @@ data:
   label_from: training
   gold_id_separator: " "
   outpath: data/models/en_s
-  mfs_file: resources/mfs/mfs_wn.en.bnids.txt
+  mfs_file: resources/mfs/mfs_bn.en.bnids.txt
   test_names:
-    - senseval2
-    - senseval3
+    - wiki_dev_en
+    - wiki_test_en
     - semeval2007
-    - semeval2007_coarse
-    - semeval2010
-    - semeval2013
-    - semeval2015
-    - ALL
-    - ALL_no_semeval2007
+    - semeval2013_en_filter
+    - semeval2015_en_filter
   dev_name: semeval2007
   max_sentence_token: 30
   sliding_window: 15

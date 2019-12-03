@@ -1,6 +1,6 @@
 data:
   langs:
-    - fr 
+    - it
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
     - data/training_data/multilingual_training_data/onesec+translated_semcor+babel_glosses/it/onesec_it+semcor_it+babelgloss_it.filter.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
@@ -8,11 +8,12 @@ data:
   label_from: training
   gold_id_separator: " "
   outpath: data/models/it_s+g+o
-  mfs_file:
+  mfs_file: resources/mfs/mfs_bn.de.bnids.txt
   test_names:
-    - semeval2013_it
-    - semeval2015_it
-    - dev_it
+    - wiki_dev_it
+    - wiki_test_it
+    - semeval2013_it_filter
+    - semeval2015_it_filter
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
@@ -23,7 +24,7 @@ model:
   learning_rate: 1e-4
 
 training:
-  num_epochs: 40
+  num_epochs: 25 
 
 #wandb:
 #  tags:
