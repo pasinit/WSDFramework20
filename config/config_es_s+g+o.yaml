@@ -8,16 +8,18 @@ data:
   label_from: training
   gold_id_separator: " "
   outpath: data/models/es_s+g+o
-  mfs_file:
+  mfs_file: resources/mfs/mfs_bn.es.bnids.txt
   test_names:
-    - semeval2013_es
-    - semeval2015_es
+    - wiki_dev_es
+    - wiki_test_es
+    - semeval2013_es_filter
+    - semeval2015_es_filter
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
 
 model:
-  device: cpu
+  device: cuda 
   model_name: bert-base-multilingual-cased
   learning_rate: 1e-4
 

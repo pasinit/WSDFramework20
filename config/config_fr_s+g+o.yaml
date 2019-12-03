@@ -8,8 +8,10 @@ data:
   label_from: training
   gold_id_separator: " "
   outpath: data/models/fr_s+g+o
-  mfs_file:
+  mfs_file: resources/mfs/mfs_bn.fr.bnids.txt 
   test_names:
+    - wiki_dev_fr
+    - wiki_test_fr
     - semeval2013_fr
   max_sentence_token: 30
   sliding_window: 15

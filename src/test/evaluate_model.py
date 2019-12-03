@@ -86,7 +86,6 @@ def evaluate_datasets(dataset_paths: List[str],
                                                                                                                  "recall_mfs",
                                                                                                                  "f1_mfs"]]))
         lines.append([metrics["precision"], metrics["recall"], metrics["f1"], metrics.get("f1_mfs", -1)])
-        break
     print("SUMMARY:")
     # d = DataFrame.from_dict(all_metrics).transpose()
     d = DataFrame(lines, columns=["Precision", "Recall", "F1", "F1_MFS"], index=names)
