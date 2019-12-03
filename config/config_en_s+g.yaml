@@ -11,19 +11,15 @@ data:
   outpath: data/models/en_s+g
   mfs_file: resources/mfs/mfs_wn.en.bnids.txt
   test_names:
-    - senseval2
-    - senseval3
-    - semeval2007
-    - semeval2007_coarse
-    - semeval2010
-    - semeval2013
-    - semeval2015
-    - ALL
-    - ALL_no_semeval2007
-  dev_name: semeval2007
+    - wiki_dev_en
+    - wiki_test_en
+    - semeval2013_en
+    - semeval2015_en
+  dev_name: wiki_dev_en 
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
+  lazy: True
 
 model:
   device: cuda 

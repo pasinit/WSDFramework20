@@ -10,8 +10,12 @@ data:
   outpath: data/models/es_s+g
   mfs_file: resources/mfs/mfs_bn.es.bnids.txt
   test_names:
+    - wiki_dev_es
+    - wiki_test_es
     - semeval2013_es
     - semeval2015_es
+  dev_name: wiki_dev_es
+
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
