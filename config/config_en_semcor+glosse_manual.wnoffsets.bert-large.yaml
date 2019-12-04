@@ -7,7 +7,7 @@ data:
 
   gold_id_separator: " "
   outpath: data/models/en_semcor_gloss_manual_wnoffsets_training/
-  label_from: training
+  label_from: wnoffsets 
   sense_inventory: wnoffset 
   mfs_file: resources/mfs/mfs_wn.en.wnoffset.txt
   test_names:
@@ -21,8 +21,8 @@ data:
     - ALL
     - ALL_no_semeval2007
   dev_name: semeval2007
-  max_sentence_token: 30
-  sliding_window: 15
+  max_sentence_token: 200
+  sliding_window: 200
   max_segments_in_batch: 2000
 
 model:
