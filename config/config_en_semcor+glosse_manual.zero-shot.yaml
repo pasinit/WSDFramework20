@@ -27,6 +27,18 @@ data:
     - wiki_dev_it
     - wiki_test_it
     - semeval2013_it
+#    - senseval2
+      #- senseval3
+      #- semeval2007
+      #- semeval2007_coarse
+      #- semeval2010
+      #- semeval2013
+      #- semeval2015
+      #- ALL
+      #- ALL_no_semeval2007
+    - semeval2013_it
+    - wiki_dev_it
+    - wiki_test_it
     - semeval2015_it
     - wiki_dev_es
     - wiki_test_es

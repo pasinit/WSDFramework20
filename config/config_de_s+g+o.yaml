@@ -10,9 +10,9 @@ data:
   outpath: data/models/de_s+g+o
   mfs_file: resources/mfs/mfs_bn.de.bnids.txt
   test_names:
-    - wiki_dev_de
-    - wiki_test_de
-    - semeval2013_de
+    - wiki_dev_de_wnfilter
+    - wiki_test_de_wnfilter
+    - semeval2013_de_wnfilter
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000

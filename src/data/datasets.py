@@ -224,7 +224,6 @@ class AllenWSDDatasetReader(DatasetReader):
     #     return goldid
 
     def load_gold_file(self, gold_file):
-        print("loading gold file")
         key2gold = dict()
         with open(gold_file) as lines:
             for line in lines:
@@ -240,8 +239,11 @@ class AllenWSDDatasetReader(DatasetReader):
 
     def load_xml(self, tokid2gold, file_path):
         # root = etree.parse(file_path)
-        print("loading xml")
-        for _, sentence in etree.iterparse(file_path, events=("start",), tag="sentence"):
+        # words = list()
+        # lemmaposs = list()
+        # ids = list()
+        # labels = list()
+        for _, sentence in etree.iterparse(file_path, tag="sentence"):
             words = list()
             lemmaposs = list()
             ids = list()
@@ -267,6 +269,8 @@ class AllenWSDDatasetReader(DatasetReader):
             else:
                 if any(x is not None for x in ids):
                     yield self.text_to_instance(words, lemmaposs, ids, np.array(labels))
+        # if len(words) > 0:
+        #     yield self.text_to_instance(words, lemmaposs, ids, np.array(labels))
 
     def sliding_window(self, words, lemmapos, ids, labels):
         for i in range(0, len(words), self.sliding_window_size):
@@ -276,11 +280,12 @@ class AllenWSDDatasetReader(DatasetReader):
             ls = labels[i:i + self.max_sentence_len]
             yield w_window, lp_window, is_window, ls
             if i + self.max_sentence_len > len(words):
-                return
+                break
+        return
+
 
     def text_to_instance(self, input_words: List[Token], input_lemmapos: List[str], input_ids: List[str],
                          labels: np.ndarray) -> Instance:
-
         input_words_field = TextField(input_words, self.token_indexers)
         fields = {"tokens": input_words_field}
         sentence_id = [x for x in input_ids if x is not None][0]
