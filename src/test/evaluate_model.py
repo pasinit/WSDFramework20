@@ -5,12 +5,9 @@ from allennlp.data import Vocabulary
 from allennlp.data.iterators import BucketIterator, BasicIterator
 from allennlp.data.token_indexers import PretrainedBertIndexer
 from allennlp.predictors import SentenceTaggerPredictor
-from allennlp.tests.commands.evaluate_test import DummyIterator
 from argparse import ArgumentParser
 
-from allennlp.training import Trainer
 from pandas import DataFrame
-from torchtext.data import BucketIterator
 from tqdm import tqdm
 
 from src.data.datasets import AllenWSDDatasetReader
@@ -21,7 +18,8 @@ import os
 import yaml
 
 
-def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_mfs=False, mfs_vocab=None):
+def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_mfs=False, mfs_vocab=None,
+             verbose=True):
     iterator = BasicIterator(
     )
     f1_computer = WSDF1(label_vocab, use_mfs, mfs_vocab)
@@ -29,7 +27,11 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
     batches = [x for x in iterator._create_batches(dataset_reader.read(dataset_path), False)]
     with open(output_path, "w") as writer, open(output_path.replace(".txt", ".mfs.txt"), "w") as mfs_writer, \
             open(output_path.replace(".txt", ".mfs.info.txt"), "w") as mfs_info_writer:
-        for batch in tqdm(batches):
+        bar = batches
+        if verbose:
+            bar = tqdm(batches)
+
+        for batch in bar:
             outputs = predictor.predict_batch_instance(batch.instances)
             ids = [prediction["ids"] for prediction in outputs]
             predictions = [prediction["full_predictions"] for prediction in outputs]
@@ -47,12 +49,11 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                              zip(lemmapos, i_predictions)]
                 mfs_writer.write(
                     "\n".join(["{} {}".format(id, p) for id, p in zip(i_ids, mfs_preds)]))
+                mfs_writer.write("\n")
                 for id, lp, p in zip(i_ids, lemmapos, i_predictions):
                     is_mfs = label_vocab.itos[p] == "<unk>"
                     pred = mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
-                    mfs_writer.write("{} {} {}".format(id, pred, "MFS" if is_mfs else ""))
-
-                mfs_writer.write("\n")
+                    mfs_info_writer.write("{} {} {}\n".format(id, pred, "MFS" if is_mfs else ""))
 
         metric = f1_computer.get_metric(True)
         return metric
@@ -66,7 +67,7 @@ def evaluate_datasets(dataset_paths: List[str],
                       lemma2synsets: Dict,
                       device_int: int, mfs_dictionary: Dict,
                       use_mfs: bool,
-                      output_path
+                      output_path, verbose=True
                       ):
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
@@ -77,27 +78,31 @@ def evaluate_datasets(dataset_paths: List[str],
     all_metrics = dict()
     names = list()  # [dataset_path.split("/")[-1].split(".")[0] for dataset_path in dataset_paths]
     lines = list()
+    if not verbose:
+        dataset_paths = tqdm(dataset_paths, desc="datasets_progress")
     for dataset_path in dataset_paths:
         name = dataset_path.split("/")[-1]  # .split(".")[0]
         names.append(name)
         metrics = evaluate(dataset_reader, dataset_path, model, os.path.join(output_path, name + ".predictions.txt"),
-                           label_vocab, use_mfs, mfs_dictionary)
+                           label_vocab, use_mfs, mfs_dictionary, verbose=verbose)
         all_metrics[name] = OrderedDict(
             {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
              "f1_mfs": metrics.get("f1_mfs", None)})
-        print("{}: precision: {}, recall: {}, f1: {}, precision_mfs: {}, recall_mfs: {}, f1_mfs:{}".format(name,
-                                                                                                           *[
-                                                                                                               metrics.get(
-                                                                                                                   x,
-                                                                                                                   -1)
-                                                                                                               for x in
-                                                                                                               [
-                                                                                                                   "precision",
-                                                                                                                   "recall",
-                                                                                                                   "f1",
-                                                                                                                   "p_mfs",
-                                                                                                                   "recall_mfs",
-                                                                                                                   "f1_mfs"]]))
+        if verbose:
+            print("{}: precision: {}, recall: {}, f1: {}, precision_mfs: {}, recall_mfs: {}, f1_mfs:{}".format(name,
+                                                                                                               *[
+                                                                                                                   metrics.get(
+                                                                                                                       x,
+                                                                                                                       -1)
+                                                                                                                   for x
+                                                                                                                   in
+                                                                                                                   [
+                                                                                                                       "precision",
+                                                                                                                       "recall",
+                                                                                                                       "f1",
+                                                                                                                       "p_mfs",
+                                                                                                                       "recall_mfs",
+                                                                                                                       "f1_mfs"]]))
         lines.append([metrics["precision"], metrics["recall"], metrics["f1"], metrics.get("f1_mfs", -1)])
     print("SUMMARY:")
     # d = DataFrame.from_dict(all_metrics).transpose()
@@ -105,10 +110,6 @@ def evaluate_datasets(dataset_paths: List[str],
     with pandas.option_context('display.max_rows', None, 'display.max_columns', None, 'display.float_format',
                                '{:0.3f}'.format):  # more options can be specified also
         print(d.to_csv(sep="\t"))
-    # for name, metrics in all_metrics.items():
-
-    # for batch in iterator(dataset, num_epochs=1, shuffle=False):
-    #     predictor.
 
 
 def to_scorer_format(path):
@@ -134,6 +135,7 @@ def get_best_checkpoint_from_predictions(dataset_path, dataset_reader, predictio
 def main(args):
     with open(args.config) as reader:
         config = yaml.load(reader, Loader=yaml.FullLoader)
+    verbose = args.verbose
     data_config = config["data"]
     model_config = config["model"]
     outpath = data_config["outpath"]
@@ -182,8 +184,8 @@ def main(args):
                 label_from))
 
     reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
-                                                                         sliding_window=200,
-                                                                         max_sentence_token=200,
+                                                                         sliding_window=35,
+                                                                         max_sentence_token=35,
                                                                          gold_id_separator=gold_id_separator,
                                                                          langs=langs,
                                                                          training_data_xmls=training_paths,
@@ -192,16 +194,17 @@ def main(args):
     if args.find_best is True:
         epoch = get_best_checkpoint(args.dev_set, reader, checkpoint_path, model_name,
                                     label_vocab, lemma2synsets, device_int,
-                                    mfs_dictionary, args.output_path, mfs_dictionary is not None
+                                    mfs_dictionary, args.output_path, mfs_dictionary is not None,
+                                    verbose=verbose
                                     )
         checkpoint_path = os.path.join(checkpoint_path, "model_state_epoch_{}.th".format(epoch))
         print("best checpoint: {}".format(checkpoint_path))
     evaluate_datasets(test_paths, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
-                      mfs_dictionary, mfs_dictionary is not None, args.output_path)
+                      mfs_dictionary, mfs_dictionary is not None, args.output_path, verbose=verbose)
 
 
 def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
-                        mfs_dictionary, output_path, use_mfs, metric_to_track="f1_mfs"):
+                        mfs_dictionary, output_path, use_mfs, metric_to_track="f1_mfs", verbose=True):
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
                                                    label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
@@ -218,7 +221,7 @@ def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, 
         name = path.split("/")[-1]
         metrics = evaluate(reader, path, model,
                            os.path.join(output_path, name + ".predictions.txt"),
-                           label_vocab, use_mfs, mfs_dictionary)
+                           label_vocab, use_mfs, mfs_dictionary, verbose=verbose)
         val = metrics[metric_to_track]
         if val > best_metric:
             best_epoch = epoch
@@ -235,5 +238,6 @@ if __name__ == "__main__":
     parser.add_argument("--test_path", default=None, nargs="+")
     parser.add_argument("--find_best", action="store_true", default=False)
     parser.add_argument("--dev_set", default=None, type=str)
+    parser.add_argument("--verbose", action="store_true", default=False)
     args = parser.parse_args()
     main(args)

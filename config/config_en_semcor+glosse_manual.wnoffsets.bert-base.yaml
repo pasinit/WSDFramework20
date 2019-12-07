@@ -3,7 +3,7 @@ data:
    - en
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
-    - data/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_manual.data.xml
+    - data2/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_manual.data.xml
 
   gold_id_separator: " "
   outpath: data/models/en_semcor_gloss_manual_wnoffsets_training/
