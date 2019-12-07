@@ -15,6 +15,18 @@ data:
   sense_inventory: babelnet
   mfs_file: resources/mfs/mfs.zeroshot.bnid.txt
   test_names:
+    - senseval2
+    - senseval3
+    - semeval2007
+    - semeval2007_coarse
+    - semeval2010
+    - semeval2013
+    - semeval2015
+    - ALL
+    - ALL_no_semeval2007
+    - wiki_dev_it
+    - wiki_test_it
+    - semeval2013_it
 #    - senseval2
       #- senseval3
       #- semeval2007
