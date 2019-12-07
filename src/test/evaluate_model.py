@@ -212,7 +212,10 @@ def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, 
     num_checkpoints = len([x for x in os.listdir(checkpoint_path) if "model_state_epoch" in x])
     best_epoch = -1
     best_metric = -1
-    for epoch in range(num_checkpoints):
+    r = range(num_checkpoints)
+    if not verbose:
+        r = tqdm(r)
+    for epoch in r:
         fname = "model_state_epoch_{}.th".format(epoch)
         model.load_state_dict(
             torch.load(os.path.join(checkpoint_path, fname),
