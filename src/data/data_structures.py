@@ -55,7 +55,7 @@ class Lemma2Synsets(dict):
                 fields = line.strip().split(" ")
                 key = fields[0]
                 pos = get_pos_from_key(key)
-                offset = fields[1] + pos
+                offset = "wn:" + fields[1] + pos
                 lexeme = key.split("%")[0] + "#" + pos
                 golds = lemmapos2gold.get(lexeme, set())
                 golds.add(offset)

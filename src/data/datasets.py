@@ -106,7 +106,7 @@ class LabelVocabulary(Vocab):
                 fields = line.strip().split(" ")
                 key = fields[0]
                 pos = get_pos_from_key(key)
-                offset = fields[1] + pos
+                offset = "wn:" + fields[1] + pos
                 offsets.append(offset)
         return LabelVocabulary(Counter(sorted(offsets)), specials=["<pad>", "<unk>"])
 
@@ -243,6 +243,7 @@ class AllenWSDDatasetReader(DatasetReader):
         # lemmaposs = list()
         # ids = list()
         # labels = list()
+        start = 0
         for _, sentence in etree.iterparse(file_path, tag="sentence"):
             words = list()
             lemmaposs = list()
@@ -265,10 +266,18 @@ class AllenWSDDatasetReader(DatasetReader):
             if len(words) > self.max_sentence_len:
                 for w_window, lp_window, iis_window, ls_window in self.sliding_window(words, lemmaposs, ids, labels):
                     if len(w_window) > 0 and any(x is not None for x in iis_window):
-                        yield self.text_to_instance(w_window, lp_window, iis_window, np.array(ls_window))
+                        unique_token_ids = [i+start for i in range(len(iis_window)) if iis_window[i] is not None]
+                        # if 2354 in unique_token_ids:
+                        #     print()
+                        yield self.text_to_instance(unique_token_ids, w_window, lp_window, iis_window, np.array(ls_window))
+                        start += unique_token_ids[-1] + 1
             else:
                 if any(x is not None for x in ids):
-                    yield self.text_to_instance(words, lemmaposs, ids, np.array(labels))
+                    unique_token_ids = [i + start for i in range(len(ids)) if ids[i] is not None]
+                    # if 2354 in unique_token_ids:
+                    #     print()
+                    yield self.text_to_instance(unique_token_ids, words, lemmaposs, ids, np.array(labels))
+                    start += unique_token_ids[-1] + 1
         # if len(words) > 0:
         #     yield self.text_to_instance(words, lemmaposs, ids, np.array(labels))
 
@@ -283,15 +292,18 @@ class AllenWSDDatasetReader(DatasetReader):
                 break
         return
 
-
-    def text_to_instance(self, input_words: List[Token], input_lemmapos: List[str], input_ids: List[str],
+    def text_to_instance(self, unique_token_ids: List[int], input_words: List[Token], input_lemmapos: List[str],
+                         input_ids: List[str],
                          labels: np.ndarray) -> Instance:
         input_words_field = TextField(input_words, self.token_indexers)
         fields = {"tokens": input_words_field}
-        sentence_id = [x for x in input_ids if x is not None][0]
-        sentence_id = ".".join(sentence_id.split(".")[:2])
-        sentence_id_field = MetadataField(sentence_id)
-        fields["sentence_ids"] = sentence_id_field
+        instance_ids = [x for x in input_ids if x is not None][0]
+        instance_ids = ".".join(instance_ids.split(".")[:2])
+
+        instance_ids = MetadataField(instance_ids)
+        cache_instance_id = MetadataField(unique_token_ids)
+        fields["instance_ids"] = instance_ids
+        fields["cache_instance_ids"] = cache_instance_id
         id_field = MetadataField(input_ids)
         fields["ids"] = id_field
 
@@ -315,6 +327,7 @@ class AllenWSDDatasetReader(DatasetReader):
         label_field = ArrayField(
             array=np.array(label_ids).astype(np.int32),
             dtype=np.long)
+        assert np.sum(np.array(label_ids) != 0) == len(cache_instance_id.metadata)
         fields["label_ids"] = label_field
         fields["labels"] = MetadataField([ls for ls in labels if len(ls) > 0])
 
@@ -332,8 +345,9 @@ class AllenWSDDatasetReader(DatasetReader):
             classes = np.array(list(classes))
 
             possible_labels.append(classes)
-        assert len(labeled_lemmapos) == len(labeled_token_indices) == len(possible_labels)
 
+        assert len(labeled_lemmapos) == len(labeled_token_indices) == len(possible_labels)
+        assert len(fields["labels"].metadata) == len(labeled_lemmapos)
         possible_labels_field = MetadataField(possible_labels)
         fields["possible_labels"] = possible_labels_field
 

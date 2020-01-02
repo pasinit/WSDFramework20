@@ -10,10 +10,10 @@ data:
   outpath: data/models/it_onesec
   mfs_file: resources/mfs/mfs_bn.it.bnids.txt
   test_names:
-    - wiki_dev_it_wnfilter
-    - wiki_test_it_wnfilter
+      #- wiki_dev_it_wnfilter
+      #- wiki_test_it_wnfilter
     - semeval2013_it_wnfilter
-    - semeval2015_it_wnfilter
+      #- semeval2015_it_wnfilter
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
