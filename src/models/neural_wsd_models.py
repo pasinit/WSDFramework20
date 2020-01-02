@@ -319,7 +319,7 @@ class AllenWSDModel(Model):
                   "tokens-type-ids": tokens["tokens-type-ids"][indices_to_compute],
                   "mask": tokens["mask"][indices_to_compute]}
         mask_to_compute = mask[indices_to_compute]
-        embeddings = self.word_embeddings(tokens, **{"token_type_ids":tokens["tokens-type-ids"]})
+        embeddings = self.word_embeddings(tokens, **{"token_type_ids": tokens["tokens-type-ids"]})
         embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
 
         retrieved_embedding_mask = mask_to_compute != 0
@@ -327,8 +327,9 @@ class AllenWSDModel(Model):
         self.cache.update(dict(zip([x for y in instance_ids for x in y], embeddings.cpu())))
         return embeddings
 
-    def train(self, mode: bool = ...) :
+    def train(self, mode: bool = ...):
         self.projection.train()
+        self.training = mode
 
     def get_embeddings(self, tokens, mask, instance_ids):
         retrieved_embedding_mask = mask != 0
@@ -410,7 +411,7 @@ class AllenWSDModel(Model):
 
     @staticmethod
     def get_transformer_based_wsd_model(model_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
-                                        pad_token_id = 0,
+                                        pad_token_id=0,
                                         mfs_dictionary=None,
                                         vocab=None,
                                         return_full_output=False,
@@ -418,7 +419,8 @@ class AllenWSDModel(Model):
         vocab = Vocabulary() if vocab is None else vocab
         text_embedder = PretrainedTransformerEmbedder(pretrained_model=model_name,
                                                       top_layer_only=True,  # conserve memory
-                                                      requires_grad=not eval and finetune_embedder, pad_token_id = pad_token_id)
+                                                      requires_grad=not eval and finetune_embedder,
+                                                      pad_token_id=pad_token_id)
         # for param in text_embedder.parameters():
         #     param.requires_grad = finetune_embedder and not eval
         word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder},
