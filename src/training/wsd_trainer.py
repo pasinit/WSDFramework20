@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import torch
 import wandb
 import yaml
-from allennlp.data.iterators import BucketIterator
+from allennlp.data.iterators import BucketIterator, BasicIterator
 from allennlp.data.token_indexers import PretrainedBertIndexer
 from allennlp.training.callbacks import Checkpoint
 from allennlp.training.checkpointer import Checkpointer
@@ -18,7 +18,8 @@ from torch import optim
 from src.data.dataset_utils import get_pos_from_key
 
 from src.data.datasets import Vocabulary, AllenWSDDatasetReader
-from src.misc.logging import get_info_logger
+from src.misc.wsdlogging import get_info_logger
+from src.models.core import PretrainedXLMIndexer, PretrainedRoBERTaIndexer
 from src.models.neural_wsd_models import AllenWSDModel, WSDOutputWriter
 import numpy as np
 
@@ -42,6 +43,28 @@ def build_outpath_subdirs(path):
     except:
         pass
 
+def get_token_indexer(model_name):
+    if model_name.startswith("bert-"):
+        return PretrainedBertIndexer(
+            pretrained_model=model_name,
+            do_lowercase=False,
+            truncate_long_sequences=False
+        ), 0
+    if model_name.startswith("xlm-"):
+        indexer= PretrainedXLMIndexer(
+            pretrained_model=model_name,
+            do_lowercase=False,
+            truncate_long_sequences=False
+        )
+        return indexer, indexer.padding()
+    if model_name.startswith("roberta-"):
+        indexer= PretrainedRoBERTaIndexer(
+            pretrained_model=model_name,
+            do_lowercase=False,
+            truncate_long_sequences=False
+        )
+        return indexer, indexer.padding()
+    raise RuntimeError("Unknown model name: {}, cannot instanciate any indexer".format(model_name))
 
 def main(args):
     with open(args.config) as reader:
@@ -65,6 +88,7 @@ def main(args):
     device = model_config["device"]
     model_name = model_config["model_name"]
     learning_rate = float(model_config["learning_rate"])
+    cache_instances = training_config["cache_instances"]
     num_epochs = training_config["num_epochs"]
     wandb.init(config=config, project="wsd_framework", tags=[socket.gethostname(), model_name, ",".join(langs)])
     if dev_name is None:
@@ -75,11 +99,8 @@ def main(args):
     training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
     outpath = os.path.join(outpath, model_name)
     build_outpath_subdirs(outpath)
-    token_indexer = PretrainedBertIndexer(
-        pretrained_model=model_name,
-        do_lowercase=False,
-        truncate_long_sequences=False
-    )
+
+    token_indexer, padding = get_token_indexer(model_name)
 
     if label_from == "wnoffsets":
         dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
@@ -105,9 +126,9 @@ def main(args):
                                                                          sense_inventory=sense_inventory,
                                                                          mfs_file=mfs_file,
                                                                          lazy=data_config.get("lazy", False))
-    model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
+    model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                   cache_vectors=True)
+                                                   cache_vectors=cache_instances, pad_token_id=padding)
     logger.info("loading training data...")
     train_ds = reader.read(training_paths)
 
@@ -118,12 +139,15 @@ def main(args):
     #####################################################
     logger.info("loading test data...")
     tests_dss = [reader.read(test_path) for test_path in test_paths]
+    # iterator = BasicIterator(maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
+    #                          cache_instances=True
+    #                          )
     iterator = BucketIterator(
         biggest_batch_first=True,
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-        instances_per_epoch=1
+        # instances_per_epoch=1
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
@@ -154,7 +178,7 @@ def main(args):
                                 callbacks=callbacks,
                                 shuffle=True,
                                 track_dev_metrics=True,
-                                metric_name="f1_mfs"
+                                metric_name="f1_mfs" if mfs_file else "f1"
                                 )
     trainer.train()
     with open(os.path.join(outpath, "last_model.th"), "wb") as writer:

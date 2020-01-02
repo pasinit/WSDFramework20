@@ -11,15 +11,16 @@ data:
   sense_inventory: wnoffset 
   mfs_file: resources/mfs/mfs_wn.en.wnoffset.txt
   test_names:
-    - senseval2
-    - senseval3
-    - semeval2007
-    - semeval2007_coarse
-    - semeval2010
-    - semeval2013
-    - semeval2015
-    - ALL
-    - ALL_no_semeval2007
+      #- senseval2
+      #- senseval3
+      #- semeval2007
+      #- semeval2007_coarse
+      #- semeval2010
+      #- semeval2013
+      #- semeval2015
+    - wiki_test_en
+      #- ALL
+      #- ALL_no_semeval2007
   dev_name: semeval2007
   max_sentence_token: 200 
   sliding_window: 200

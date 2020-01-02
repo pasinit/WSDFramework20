@@ -1,8 +1,8 @@
 import subprocess
-from typing import Dict, List, OrderedDict
-
+from collections import OrderedDict
+from typing import Dict, List
 from allennlp.data import Vocabulary
-from allennlp.data.iterators import BucketIterator, BasicIterator
+from allennlp.data.iterators import BasicIterator, BucketIterator
 from allennlp.data.token_indexers import PretrainedBertIndexer
 from allennlp.predictors import SentenceTaggerPredictor
 from argparse import ArgumentParser
@@ -19,9 +19,15 @@ import yaml
 
 
 def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_mfs=False, mfs_vocab=None,
-             verbose=True):
+             verbose=True, debug=False):
     iterator = BasicIterator(
+        batch_size=64
     )
+    # iterator = BucketIterator(
+    #     biggest_batch_first=False,
+    #     sorting_keys=[("tokens", "num_tokens")],
+    #     maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
+    # )
     f1_computer = WSDF1(label_vocab, use_mfs, mfs_vocab)
     predictor = SentenceTaggerPredictor(model, dataset_reader)
     batches = [x for x in iterator._create_batches(dataset_reader.read(dataset_path), False)]
@@ -30,7 +36,7 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
         bar = batches
         if verbose:
             bar = tqdm(batches)
-
+        debugwriter = open("/tmp/debug.txt", "w")
         for batch in bar:
             outputs = predictor.predict_batch_instance(batch.instances)
             ids = [prediction["ids"] for prediction in outputs]
@@ -41,6 +47,7 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                 assert len(i_ids) == len(i_predictions)
                 lemmapos = instance.fields["labeled_lemmapos"]
                 f1_computer(lemmapos, i_predictions, i_labels, ids=instance.fields["ids"].metadata)
+                f1_computer.get_metric(False)
                 writer.write(
                     "\n".join(["{} {}".format(id, label_vocab.itos[p]) for id, p in zip(i_ids, i_predictions)]))
                 writer.write("\n")
@@ -50,12 +57,17 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                 mfs_writer.write(
                     "\n".join(["{} {}".format(id, p) for id, p in zip(i_ids, mfs_preds)]))
                 mfs_writer.write("\n")
-                for id, lp, p in zip(i_ids, lemmapos, i_predictions):
-                    is_mfs = label_vocab.itos[p] == "<unk>"
-                    pred = mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
-                    mfs_info_writer.write("{} {} {}\n".format(id, pred, "MFS" if is_mfs else ""))
-
+                if debug:
+                    debugwriter.write(" ".join(x.text for x in instance.fields["tokens"]) + "\n")
+                    for id, lp, p, label, possible_labels in zip(i_ids, lemmapos, i_predictions, i_labels,
+                                                                 [[label_vocab.get_string(y) for y in x] for x in
+                                                                  instance.fields["possible_labels"]]):
+                        is_mfs = label_vocab.itos[p] == "<unk>"
+                        pred = mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
+                        mfs_info_writer.write("{} {} {}\n".format(id, pred, "MFS" if is_mfs else ""))
+                        debugwriter.write("{}\t{}\t{}\t{}\t{}\n".format(id, lp, pred, label, ", ".join(possible_labels)))
         metric = f1_computer.get_metric(True)
+        debugwriter.close()
         return metric
 
 
@@ -67,11 +79,11 @@ def evaluate_datasets(dataset_paths: List[str],
                       lemma2synsets: Dict,
                       device_int: int, mfs_dictionary: Dict,
                       use_mfs: bool,
-                      output_path, verbose=True
+                      output_path, verbose=True, debug=False
                       ):
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                   cache_vectors=True, return_full_output=True)
+                                                   eval=True, finetune_embedder=False, return_full_output=True)
     model.load_state_dict(
         torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
     model.eval()
@@ -84,7 +96,7 @@ def evaluate_datasets(dataset_paths: List[str],
         name = dataset_path.split("/")[-1]  # .split(".")[0]
         names.append(name)
         metrics = evaluate(dataset_reader, dataset_path, model, os.path.join(output_path, name + ".predictions.txt"),
-                           label_vocab, use_mfs, mfs_dictionary, verbose=verbose)
+                           label_vocab, use_mfs, mfs_dictionary, verbose=verbose, debug=debug)
         all_metrics[name] = OrderedDict(
             {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
              "f1_mfs": metrics.get("f1_mfs", None)})
@@ -136,6 +148,7 @@ def main(args):
     with open(args.config) as reader:
         config = yaml.load(reader, Loader=yaml.FullLoader)
     verbose = args.verbose
+    debug = args.debug
     data_config = config["data"]
     model_config = config["model"]
     outpath = data_config["outpath"]
@@ -200,7 +213,7 @@ def main(args):
         checkpoint_path = os.path.join(checkpoint_path, "model_state_epoch_{}.th".format(epoch))
         print("best checpoint: {}".format(checkpoint_path))
     evaluate_datasets(test_paths, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
-                      mfs_dictionary, mfs_dictionary is not None, args.output_path, verbose=verbose)
+                      mfs_dictionary, mfs_dictionary is not None, args.output_path, verbose=verbose, debug=debug)
 
 
 def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
@@ -208,7 +221,7 @@ def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, 
     model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
                                                    label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                   cache_vectors=True, return_full_output=True)
+                                                   eval=True, finetune_embedder=False, return_full_output=True)
     num_checkpoints = len([x for x in os.listdir(checkpoint_path) if "model_state_epoch" in x])
     best_epoch = -1
     best_metric = -1
@@ -242,5 +255,7 @@ if __name__ == "__main__":
     parser.add_argument("--find_best", action="store_true", default=False)
     parser.add_argument("--dev_set", default=None, type=str)
     parser.add_argument("--verbose", action="store_true", default=False)
+    parser.add_argument("--debug", action="store_true", default=False)
+
     args = parser.parse_args()
     main(args)
