@@ -24,19 +24,19 @@ data:
       #- semeval2015
       #- ALL
       #- ALL_no_semeval2007
-    - wiki_dev_it_wnfilter
-    - wiki_test_it_wnfilter
+    - wiki_dev_it
+    - wiki_test_it
     - semeval2013_it_wnfilter
     - semeval2015_it_wnfilter
-    - wiki_dev_es_wnfilter
-    - wiki_test_es_wnfilter
+    - wiki_dev_es
+    - wiki_test_es
     - semeval2013_es_wnfilter
     - semeval2015_es_wnfilter
-    - wiki_dev_fr_wnfilter
-    - wiki_test_fr_wnfilter
+    - wiki_dev_fr
+    - wiki_test_fr
     - semeval2013_fr_wnfilter
-    - wiki_dev_de_wnfilter
-    - wiki_test_de_wnfilter
+    - wiki_dev_de
+    - wiki_test_de
     - semeval2013_de_wnfilter
   dev_name: semeval2007
   max_sentence_token: 30
