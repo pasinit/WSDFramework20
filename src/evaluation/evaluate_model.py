@@ -17,6 +17,8 @@ import torch
 import os
 import yaml
 
+from src.training.wsd_trainer import get_token_indexer
+
 
 def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_mfs=False, mfs_vocab=None,
              verbose=True, debug=False):
@@ -65,7 +67,8 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                         is_mfs = label_vocab.itos[p] == "<unk>"
                         pred = mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
                         mfs_info_writer.write("{} {} {}\n".format(id, pred, "MFS" if is_mfs else ""))
-                        debugwriter.write("{}\t{}\t{}\t{}\t{}\n".format(id, lp, pred, label, ", ".join(possible_labels)))
+                        debugwriter.write(
+                            "{}\t{}\t{}\t{}\t{}\n".format(id, lp, pred, label, ", ".join(possible_labels)))
         metric = f1_computer.get_metric(True)
         debugwriter.close()
         return metric
@@ -79,11 +82,16 @@ def evaluate_datasets(dataset_paths: List[str],
                       lemma2synsets: Dict,
                       device_int: int, mfs_dictionary: Dict,
                       use_mfs: bool,
-                      output_path, verbose=True, debug=False
+                      output_path,
+                      padding,
+                      verbose=True, debug=False,
+
                       ):
-    model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
-                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                   eval=True, finetune_embedder=False, return_full_output=True)
+    model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
+                                                          label_vocab,
+                                                          vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
+                                                          eval=True, cache_vectors=False,
+                                                          pad_token_id=padding, return_full_output=True)
     model.load_state_dict(
         torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
     model.eval()
@@ -175,18 +183,14 @@ def main(args):
         else:
             test_paths = args.test_path
     training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
-    outpath = os.path.join(outpath, model_name)
-    token_indexer = PretrainedBertIndexer(
-        pretrained_model=model_name,
-        do_lowercase=False,
-        truncate_long_sequences=False
-    )
+    # outpath = os.path.join(outpath, model_name)
+    token_indexer, padding = get_token_indexer(model_name)
 
     if label_from == "wnoffsets":
         dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
     elif label_from == "sensekeys":
         dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
-    elif label_from == "bnids":
+    elif "bnids" in label_from:
         dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
     elif label_from == "training":
         dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
@@ -213,12 +217,12 @@ def main(args):
         checkpoint_path = os.path.join(checkpoint_path, "model_state_epoch_{}.th".format(epoch))
         print("best checpoint: {}".format(checkpoint_path))
     evaluate_datasets(test_paths, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
-                      mfs_dictionary, mfs_dictionary is not None, args.output_path, verbose=verbose, debug=debug)
+                      mfs_dictionary, mfs_dictionary is not None, args.output_path, padding, verbose=verbose, debug=debug)
 
 
 def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
                         mfs_dictionary, output_path, use_mfs, metric_to_track="f1_mfs", verbose=True):
-    model = AllenWSDModel.get_bert_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
+    model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
                                                    label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
                                                    eval=True, finetune_embedder=False, return_full_output=True)

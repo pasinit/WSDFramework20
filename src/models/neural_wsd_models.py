@@ -395,12 +395,6 @@ class AllenWSDModel(Model):
 
         return full_logits, full_predictions
 
-    def add_mfs(self, lemmapos, predictions):
-        for i, lp, p in enumerate(zip(lemmapos, predictions)):
-            if p == self.label_vocab.get_idx("<unk>"):
-                mfs = self.mfs_dictionary.get(lemmapos, self.label_vocab.get_idx("<unk>"))
-                predictions[i] = mfs
-
     def get_predictions(self, labeled_logits):
         predictions = list()
         for ll in labeled_logits:
@@ -433,25 +427,25 @@ class AllenWSDModel(Model):
         model.to(str_device)
         return model
 
-    @staticmethod
-    def get_bert_based_wsd_model(bert_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
-                                 mfs_dictionary=None,
-                                 vocab=None,
-                                 return_full_output=False,
-                                 eval=False, finetune_embedder=False, cache_vectors=False):
-
-        vocab = Vocabulary() if vocab is None else vocab
-        bert_embedder = PretrainedBertEmbedder(
-            pretrained_model=bert_name,
-            top_layer_only=True,  # conserve memory
-            requires_grad=not eval and finetune_embedder
-        )
-        word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": bert_embedder},
-                                                                    # we'll be ignoring masks so we'll need to set this to True
-                                                                    allow_unmatched_keys=True)
-        str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
-        word_embeddings.to(str_device)
-        model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
-                              return_full_output=return_full_output, cache_instances=cache_vectors)
-        model.to(str_device)
-        return model
+    # @staticmethod
+    # def get_bert_based_wsd_model(bert_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
+    #                              mfs_dictionary=None,
+    #                              vocab=None,
+    #                              return_full_output=False,
+    #                              eval=False, finetune_embedder=False, cache_vectors=False):
+    #
+    #     vocab = Vocabulary() if vocab is None else vocab
+    #     bert_embedder = PretrainedBertEmbedder(
+    #         pretrained_model=bert_name,
+    #         top_layer_only=True,  # conserve memory
+    #         requires_grad=not eval and finetune_embedder
+    #     )
+    #     word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": bert_embedder},
+    #                                                                 # we'll be ignoring masks so we'll need to set this to True
+    #                                                                 allow_unmatched_keys=True)
+    #     str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
+    #     word_embeddings.to(str_device)
+    #     model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
+    #                           return_full_output=return_full_output, cache_instances=cache_vectors)
+    #     model.to(str_device)
+    #     return model

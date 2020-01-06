@@ -79,7 +79,7 @@ def main(args):
     langs = data_config["langs"]
     sense_inventory = data_config["sense_inventory"]
     gold_id_separator = data_config["gold_id_separator"]
-    label_from = data_config["label_from"]
+    label_from_training = data_config["label_from_training"]
     max_sentence_token = data_config["max_sentence_token"]
     max_segments_in_batch = data_config["max_segments_in_batch"]
     dev_name = data_config.get("dev_name", None)
@@ -102,19 +102,18 @@ def main(args):
 
     token_indexer, padding = get_token_indexer(model_name)
 
-    if label_from == "wnoffsets":
-        dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
-    elif label_from == "sensekeys":
-        dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
-    elif label_from == "bnids":
-        dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
-    elif label_from == "training":
+    if label_from_training:
         dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
-
+    elif sense_inventory == "wnoffsets":
+            dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
+    elif sense_inventory == "sensekeys":
+            dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
+    elif sense_inventory == "bnoffsets":
+            dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
     else:
         raise RuntimeError(
-            "%s label_from has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnids}" % (
-                label_from))
+            "%s sense_inventory has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnoffsets}" % (
+                sense_inventory))
 
     print("loading dataset")
     reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
@@ -123,8 +122,8 @@ def main(args):
                                                                          gold_id_separator=gold_id_separator,
                                                                          langs=langs,
                                                                          training_data_xmls=training_paths,
-                                                                         sense_inventory=sense_inventory,
                                                                          mfs_file=mfs_file,
+                                                                         sense_inventory=sense_inventory,
                                                                          lazy=data_config.get("lazy", False))
     model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
                                                    vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
@@ -147,7 +146,7 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-        # instances_per_epoch=1
+        # instances_per_epoch=10000
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
