@@ -36,9 +36,9 @@ class Lemma2Synsets(dict):
     def from_corpus_xml(corpus_path, gold_transformer=lambda v: v):
         key_path = corpus_path.replace("data.xml", "gold.key.txt")
         key2gold = Lemma2Synsets.load_keys(key_path)
-        #root = etree.parse(corpus_path).getroot()
+        # root = etree.parse(corpus_path).getroot()
         lemmapos2gold = dict()
-        for _, instance in etree.iterparse(corpus_path,tag="instance", events=("start",)):
+        for _, instance in etree.iterparse(corpus_path, tag="instance", events=("start",)):
             tokenid = instance.attrib["id"]
             lemmapos = instance.attrib["lemma"].lower() + "#" + get_simplified_pos(instance.attrib["pos"])
             lemmapos2gold[lemmapos] = lemmapos2gold.get(lemmapos, set())
@@ -63,19 +63,22 @@ class Lemma2Synsets(dict):
         return Lemma2Synsets(data=lemmapos2gold)
 
     @staticmethod
-    def from_bn_mapping(langs=("en")):
+    def from_bn_mapping(langs=("en"), sense_inventory=None, **kwargs):
+        reliable = True
+        # if sense_inventory is not None and "bnoffsets" in sense_inventory:
+        #     reliable = "bnoffsets_reliable" == sense_inventory
         lemmapos2gold = dict()
         for lang in langs:
-            with open("resources/lexeme_to_synsets/lexeme_to_bnoffsets.{}.txt".format(lang)) as lines:
+            with open("resources/lexeme_to_synsets/lexeme2synsets.reliable_sources.{}.txt".format(lang)) as lines:
                 for line in lines:
                     fields = line.strip().lower().split("\t")
-                    if len(fields)< 2:
+                    if len(fields) < 2:
                         continue
                     lemmapos = fields[0]
-                    synset = fields[1]
-                    synsets = lemmapos2gold.get(lemmapos, set())
-                    synsets.add(synset)
-                    lemmapos2gold[lemmapos] = synsets
+                    synsets = fields[1:]
+                    old_synsets = lemmapos2gold.get(lemmapos, set())
+                    old_synsets.update(synsets)
+                    lemmapos2gold[lemmapos] = old_synsets
         return Lemma2Synsets(data=lemmapos2gold)
 
     @staticmethod
