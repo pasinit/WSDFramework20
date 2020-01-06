@@ -5,21 +5,21 @@ data:
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
     - data2/training_data/en_training_data/semcor/semcor.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
-  sense_inventory: wnoffset 
-  label_from: sensekeys
+  sense_inventory: sensekeys 
+  label_from_training: False
   gold_id_separator: " "
-  outpath: data/models/en_semcor_wnoffsets_full/
+  outpath: /tmp/
   #mfs_file: resources/mfs/mfs_wn.en.wnoffset.txt
   test_names:
-    - senseval2
-    - senseval3
+#    - senseval2
+#    - senseval3
     - semeval2007
-    - semeval2007_coarse
-    - semeval2010
-    - semeval2013
-    - semeval2015
-    - ALL
-    - ALL_no_semeval2007
+#    - semeval2007_coarse
+#    - semeval2010
+#    - semeval2013
+#    - semeval2015
+#    - ALL
+#    - ALL_no_semeval2007
   dev_name: semeval2007
 
   max_sentence_token: 30
