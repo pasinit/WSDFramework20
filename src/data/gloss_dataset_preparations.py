@@ -225,9 +225,9 @@ if __name__ == "__main__":
     #                                         "data/princeton_tagged_glosses/semeval2013_format/princeton_examples.all.data.xml",
     #                                         valid_annotation_type={"man", "auto"}, sentence_tag="ex")
 
-    parse_babelnet_glosses2("data/training_data/babelnet_multilingual_glosses/glosses_it.txt",
-                            "data/training_data/babelnet_multilingual_glosses/glosses_it.parsed.xml.test",
-                            "it")
+    parse_babelnet_glosses2("data/babelnet_multilingual_glosses/glosses_en.txt",
+                            "data/babelnet_multilingual_glosses/glosses_en.parsed.xml",
+                            "en")
     # # lang = "de"
     # # with open("/home/tommaso/dev/eclipseWorkspace/factories/output/framework20/glosses_de.parsed.txt.pkl", "rb") as reader:
     # #     xml = pkl.load(reader)
