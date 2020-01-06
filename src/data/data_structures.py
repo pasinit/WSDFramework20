@@ -1,7 +1,6 @@
 from typing import Dict
 
 from lxml import etree
-
 from src.data.dataset_utils import get_pos_from_key, get_simplified_pos
 
 
@@ -37,11 +36,11 @@ class Lemma2Synsets(dict):
     def from_corpus_xml(corpus_path, gold_transformer=lambda v: v):
         key_path = corpus_path.replace("data.xml", "gold.key.txt")
         key2gold = Lemma2Synsets.load_keys(key_path)
-        root = etree.parse(corpus_path).getroot()
+        #root = etree.parse(corpus_path).getroot()
         lemmapos2gold = dict()
-        for instance in root.findall("./text/sentence/instance"):
+        for _, instance in etree.iterparse(corpus_path,tag="instance", events=("start",)):
             tokenid = instance.attrib["id"]
-            lemmapos = instance.attrib["lemma"] + "#" + get_simplified_pos(instance.attrib["pos"])
+            lemmapos = instance.attrib["lemma"].lower() + "#" + get_simplified_pos(instance.attrib["pos"])
             lemmapos2gold[lemmapos] = lemmapos2gold.get(lemmapos, set())
             lemmapos2gold[lemmapos].add(key2gold[tokenid].replace("%5", "%3"))
         for lemmapos, golds in lemmapos2gold.items():
@@ -56,7 +55,7 @@ class Lemma2Synsets(dict):
                 fields = line.strip().split(" ")
                 key = fields[0]
                 pos = get_pos_from_key(key)
-                offset = fields[1] + pos
+                offset = "wn:" + fields[1] + pos
                 lexeme = key.split("%")[0] + "#" + pos
                 golds = lemmapos2gold.get(lexeme, set())
                 golds.add(offset)
@@ -69,7 +68,9 @@ class Lemma2Synsets(dict):
         for lang in langs:
             with open("resources/lexeme_to_synsets/lexeme_to_bnoffsets.{}.txt".format(lang)) as lines:
                 for line in lines:
-                    fields = line.strip().split("\t")
+                    fields = line.strip().lower().split("\t")
+                    if len(fields)< 2:
+                        continue
                     lemmapos = fields[0]
                     synset = fields[1]
                     synsets = lemmapos2gold.get(lemmapos, set())

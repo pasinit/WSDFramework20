@@ -1,0 +1,39 @@
+data:
+  langs:
+   - en
+  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+  train_data_root:
+    - data/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_manual.data.xml
+
+  gold_id_separator: " "
+  outpath: data/models/en_semcor_gloss_manual_bert_base/
+  label_from: training
+  sense_inventory: sensekey
+  mfs_file: resources/mfs/mfs_wn.en.wnkeys.txt
+  test_names:
+    - senseval2
+    - senseval3
+    - semeval2007
+    - semeval2007_coarse
+    - semeval2010
+    - semeval2013
+    - semeval2015
+    - ALL
+    - ALL_no_semeval2007
+  dev_name: semeval2007
+  max_sentence_token: 30
+  sliding_window: 15
+  max_segments_in_batch: 2000
+
+model:
+  device: cuda
+  model_name: bert-base-cased
+  learning_rate: 1e-4
+
+training:
+  num_epochs: 25
+
+#wandb:
+#  tags:
+#    - en
+#    - bert-large-cased

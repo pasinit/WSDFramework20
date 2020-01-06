@@ -1,10 +1,4 @@
 data:
-<<<<<<< HEAD
-  lang: en
-#  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
-  test_data_root: /home/tommaso/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
-  train_data_root: data/training_data/semcor+princeton_glosses_manual.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
-=======
   langs:
     - en
   #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
@@ -13,7 +7,6 @@ data:
     - data/training_data/semcor+glosses/semcor+princeton_glosses_manual.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
   sense_inventory: wnoffsets
   label_from: wnoffsets
->>>>>>> 47dad65f1e6cc0430edb10482c917d0b29acbc4e
   gold_id_separator: " "
   outpath: data/out/
   test_names:
@@ -25,6 +18,7 @@ data:
     - semeval2013
     - semeval2015
     - ALL
+    - ALL_no_semeval2007
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000

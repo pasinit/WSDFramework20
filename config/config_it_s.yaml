@@ -1,0 +1,31 @@
+data:
+  langs:
+    - it
+  #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
+  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+  train_data_root:
+    - data/training_data/multilingual_training_data/translated_semcor/it/semcor.it.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+  sense_inventory: babelnet
+  label_from: training
+  gold_id_separator: " "
+  outpath: data/models/it_s
+  mfs_file: resources/mfs/mfs_bn.it.bnids.txt
+  test_names:
+    - semeval2013_it
+    - semeval2015_it
+  max_sentence_token: 30
+  sliding_window: 15
+  max_segments_in_batch: 2000
+
+model:
+  device: cuda 
+  model_name: bert-base-multilingual-cased
+  learning_rate: 1e-4
+
+training:
+  num_epochs: 25
+
+#wandb:
+#  tags:
+#    - en
+#    - bert-large-cased

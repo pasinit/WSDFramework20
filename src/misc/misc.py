@@ -1,7 +1,30 @@
-import xml.etree.ElementTree as ET
-import lxml.etree as etree
+import os
 
-from src.data.dataset_utils import get_pos_from_key, get_universal_pos
+def print_mfs_info(non_mfs_predictions):
+    mfs_predictions = non_mfs_predictions.replace(".txt", ".mfs.txt")
+    outpath = non_mfs_predictions.replace(".txt", ".mfs.info.txt")
+    mfs_ids = set()
+    with open(non_mfs_predictions) as lines:
+        for line in lines:
+            fields = line.strip().split(" ")
+            if "<unk>" == fields[-1]:
+                mfs_ids.add(fields[0])
+    with open(mfs_predictions) as lines, open(outpath, "w") as writer:
+        for line in lines:
+            fields = line.strip().split(" ")
+            if fields[0] in mfs_ids:
+                writer.write(line.strip() + " MFS\n")
+            else:
+                writer.write(line)
+
+def print_mfs_info_by_folder(folder):
+    for f in os.listdir(folder):
+        if f.endswith(".predictions.txt"):
+            print_mfs_info(os.path.join(folder, f))
+print_mfs_info_by_folder("data/models/en_semcor_sensekeys_mfs/bert-base-cased/evaluation/")
+# print_mfs_info("data/models/en_semcor_gloss_manual_bert_large/bert-large-cased/evaluation/ALL.data.xml.predictions.txt")
+exit(0)
+
 
 input_xml = "/media/tommaso/4940d845-c3f3-4f0b-8985-f91a0b453b07/WSDframework/data/onesec+semcor/semcor.integr.words.2.1.700.all.lexical.data.xml"
 output_xml = "data/onesec+semcor/onesec_en_to_add.data.xml"
