@@ -1,18 +1,19 @@
 import itertools
 from abc import ABC
+from typing import Dict, Iterator, Any, Callable, List
 
+import torch
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder
 from allennlp.modules.text_field_embedders import BasicTextFieldEmbedder
 from allennlp.modules.token_embedders import PretrainedBertEmbedder
-from allennlp.training.metrics import CategoricalAccuracy, Metric
+from allennlp.modules.token_embedders import PretrainedTransformerEmbedder
+from allennlp.training.metrics import Metric
 from allennlp_mods.callbacks import OutputWriter
 from nlp_models.huggingface_wrappers import GenericHuggingfaceWrapper
 from torch import nn
 from torch.nn import Module, Linear, Parameter
-from typing import Dict, Iterator, Any, Callable, List
-import torch
-import numpy as np
+
 from src.data.data_structures import Lemma2Synsets
 from src.data.datasets import Vocabulary, LabelVocabulary
 
@@ -246,7 +247,7 @@ class WSDF1(Metric):
             ret_dict.update({"p_mfs": precision_mfs,
                              "recall_mfs": recall_mfs,
                              "f1_mfs": f1_mfs, "correct_mfs": self.correct_mfs,
-                             "answers_mfs": self.answers_mfs, "tot_mfs":self.tot_mfs})
+                             "answers_mfs": self.answers_mfs, "tot_mfs": self.tot_mfs})
 
         if reset:
             self.tot = 0.0
@@ -261,17 +262,22 @@ class WSDF1(Metric):
 class AllenWSDModel(Model):
     def __init__(self, lemmapos2classes: Lemma2Synsets, word_embeddings: TextFieldEmbedder, out_sz, label_vocab,
                  vocab=None, merge_fun: Callable = lambda emb: torch.mean(emb, 0), mfs_vocab: Dict[str, str] = None,
-                 return_full_output=False):
+                 return_full_output=False, finetune_embedder=False, cache_instances=False, pad_id=0):
         vocab = Vocabulary() if vocab is None else vocab
         super().__init__(vocab)
+        self.finetune_embedder = finetune_embedder
         self.word_embeddings = word_embeddings
-        self.word_embeddings.eval()
+        if not finetune_embedder:
+            self.word_embeddings.eval()
         self.projection = nn.Linear(self.word_embeddings.get_output_dim(), out_sz)
         self.loss = nn.CrossEntropyLoss()
         self.merge_fun = merge_fun
+        self.pad_id = pad_id
         self.label_vocab = label_vocab
         self.return_full_output = return_full_output
         self.lemma2classes = lemmapos2classes
+        self.cache_instances = cache_instances
+        self.cache = dict()
         self.accuracy = WSDF1(label_vocab, mfs_vocab is not None, mfs_vocab)
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
@@ -289,7 +295,7 @@ class AllenWSDModel(Model):
             batch_embeddings = embeddings[batch_i]
             start_offset = 1
             for o_j in range(len(batch_offset)):
-                if batch_offset[o_j] == 0:
+                if batch_offset[o_j] == self.pad_id:
                     break
                 end_offset = batch_offset[o_j] + 1
                 embeddings_to_merge = batch_embeddings[start_offset:end_offset]
@@ -298,29 +304,57 @@ class AllenWSDModel(Model):
                 token_level_embeddings[batch_i, o_j] = token_level_emb
         return token_level_embeddings
 
-    def get_embeddings(self, tokens, token_ids, mask):
-        # token_ids = [t for i in range(len(token_ids)) for t in token_ids[i] if t is not None]
-        # if self.vector_cache is not None and len(self.vector_cache) > 0 and self.training and all(
-        #         x in self.vector_cache for x in token_ids):
-        #     embeddings = torch.stack([self.vector_cache[x].to(self.projection.weight.device) for x in token_ids])
-        # else:
-        with torch.no_grad():
+    def get_embeddings_from_cache(self, tokens, mask, instance_ids):
+        to_compute = [any(x not in self.cache for x in batch_instance_id) for batch_instance_id in instance_ids]
+        indices_to_compute = [i for i in range(len(to_compute)) if to_compute[i]]
+
+        if len(indices_to_compute) == 0:
+            all_embeddings = list()
+            for k, batch_instance_id in enumerate(instance_ids):
+                embeddings = [self.cache[instance_id] for instance_id in batch_instance_id]
+                all_embeddings.append(torch.stack(embeddings, 0).to(self.projection.weight.device))
+            return torch.cat(all_embeddings, 0)
+        tokens = {"tokens": tokens["tokens"][indices_to_compute],
+                  "tokens-offsets": tokens["tokens-offsets"][indices_to_compute],
+                  "tokens-type-ids": tokens["tokens-type-ids"][indices_to_compute],
+                  "mask": tokens["mask"][indices_to_compute]}
+        mask_to_compute = mask[indices_to_compute]
+        embeddings = self.word_embeddings(tokens, **{"token_type_ids": tokens["tokens-type-ids"]})
+        embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
+
+        retrieved_embedding_mask = mask_to_compute != 0
+        embeddings = embeddings[retrieved_embedding_mask]
+        self.cache.update(dict(zip([x for y in instance_ids for x in y], embeddings.cpu())))
+        return embeddings
+
+    def train(self, mode: bool = ...):
+        self.projection.train()
+        self.training = mode
+
+    def get_embeddings(self, tokens, mask, instance_ids):
+        retrieved_embedding_mask = mask != 0
+        if not self.training:
+            embeddings = self.word_embeddings(tokens)
+        elif not self.finetune_embedder:
+            if not self.cache_instances:
+                with torch.no_grad():
+                    embeddings = self.word_embeddings(tokens)
+            else:
+                return self.get_embeddings_from_cache(tokens, mask, instance_ids), retrieved_embedding_mask
+        else:
             embeddings = self.word_embeddings(tokens)
         embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
-        retrieved_embedding_mask = mask != 0
         masked_embeddings = embeddings[retrieved_embedding_mask]
-        # if token_ids is not None and self.training:
-        #     self.vector_cache.update(dict(zip(token_ids, masked_embeddings)))
-        #     assert all(torch.cat([self.vector_cache[x] for x in token_ids], 0) == masked_embeddings)
         embeddings = masked_embeddings
 
         return embeddings, retrieved_embedding_mask
 
-    def forward(self, tokens: Dict[str, torch.Tensor], sentence_ids: List[str],
+    def forward(self, tokens: Dict[str, torch.Tensor], instance_ids: List[str],
                 ids: Any, words, lemmapos, label_ids: torch.Tensor,
-                possible_labels, labeled_token_indices, labeled_lemmapos, labels) -> torch.Tensor:
+                possible_labels, labeled_token_indices, labeled_lemmapos, labels, cache_instance_ids) -> torch.Tensor:
         mask = (label_ids != self.label_vocab["<pad>"]).float().to(tokens["tokens"].device)
-        embeddings, retrieved_embedding_mask = self.get_embeddings(tokens, ids, mask)
+
+        embeddings, retrieved_embedding_mask = self.get_embeddings(tokens, mask, cache_instance_ids)
         labeled_logits = self.projection(embeddings)  # * mask.unsqueeze(-1)
         target_labels = label_ids[retrieved_embedding_mask]
         flatten_labels = [x for y in labels for x in y]
@@ -361,12 +395,6 @@ class AllenWSDModel(Model):
 
         return full_logits, full_predictions
 
-    def add_mfs(self, lemmapos, predictions):
-        for i, lp, p in enumerate(zip(lemmapos, predictions)):
-            if p == self.label_vocab.get_idx("<unk>"):
-                mfs = self.mfs_dictionary.get(lemmapos, self.label_vocab.get_idx("<unk>"))
-                predictions[i] = mfs
-
     def get_predictions(self, labeled_logits):
         predictions = list()
         for ll in labeled_logits:
@@ -376,23 +404,48 @@ class AllenWSDModel(Model):
         return torch.stack(predictions)
 
     @staticmethod
-    def get_bert_based_wsd_model(bert_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
-                                 mfs_dictionary=None,
-                                 vocab=None,
-                                 return_full_output=False,
-                                 cache_vectors=True):
-
+    def get_transformer_based_wsd_model(model_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
+                                        pad_token_id=0,
+                                        mfs_dictionary=None,
+                                        vocab=None,
+                                        return_full_output=False,
+                                        eval=False, finetune_embedder=False, cache_vectors=False):
         vocab = Vocabulary() if vocab is None else vocab
-        bert_embedder = PretrainedBertEmbedder(
-            pretrained_model=bert_name,
-            top_layer_only=True,  # conserve memory
-        )
-        word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": bert_embedder},
+        text_embedder = PretrainedTransformerEmbedder(pretrained_model=model_name,
+                                                      top_layer_only=True,  # conserve memory
+                                                      requires_grad=not eval and finetune_embedder,
+                                                      pad_token_id=pad_token_id)
+        # for param in text_embedder.parameters():
+        #     param.requires_grad = finetune_embedder and not eval
+        word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder},
                                                                     # we'll be ignoring masks so we'll need to set this to True
                                                                     allow_unmatched_keys=True)
         str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
         word_embeddings.to(str_device)
         model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
-                              return_full_output=return_full_output)
+                              return_full_output=return_full_output, cache_instances=cache_vectors, pad_id=pad_token_id)
         model.to(str_device)
         return model
+
+    # @staticmethod
+    # def get_bert_based_wsd_model(bert_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
+    #                              mfs_dictionary=None,
+    #                              vocab=None,
+    #                              return_full_output=False,
+    #                              eval=False, finetune_embedder=False, cache_vectors=False):
+    #
+    #     vocab = Vocabulary() if vocab is None else vocab
+    #     bert_embedder = PretrainedBertEmbedder(
+    #         pretrained_model=bert_name,
+    #         top_layer_only=True,  # conserve memory
+    #         requires_grad=not eval and finetune_embedder
+    #     )
+    #     word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": bert_embedder},
+    #                                                                 # we'll be ignoring masks so we'll need to set this to True
+    #                                                                 allow_unmatched_keys=True)
+    #     str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
+    #     word_embeddings.to(str_device)
+    #     model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
+    #                           return_full_output=return_full_output, cache_instances=cache_vectors)
+    #     model.to(str_device)
+    #     return model

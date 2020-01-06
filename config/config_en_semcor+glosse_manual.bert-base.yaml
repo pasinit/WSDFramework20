@@ -6,7 +6,7 @@ data:
     - data/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_manual.data.xml
 
   gold_id_separator: " "
-  outpath: data/models/en_semcor_gloss_manual_bert_base/
+  outpath: data/models/en_semcor_gloss_manual_bert_large/
   label_from: training
   sense_inventory: sensekey
   mfs_file: resources/mfs/mfs_wn.en.wnkeys.txt

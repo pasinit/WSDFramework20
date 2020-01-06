@@ -1,7 +1,6 @@
 from typing import Dict
 
 from lxml import etree
-from tqdm import tqdm
 from src.data.dataset_utils import get_pos_from_key, get_simplified_pos
 
 
@@ -37,17 +36,15 @@ class Lemma2Synsets(dict):
     def from_corpus_xml(corpus_path, gold_transformer=lambda v: v):
         key_path = corpus_path.replace("data.xml", "gold.key.txt")
         key2gold = Lemma2Synsets.load_keys(key_path)
-        #root = etree.parse(corpus_path).getroot()
-        print("loading lemma 2 gold")
+        # root = etree.parse(corpus_path).getroot()
         lemmapos2gold = dict()
-        for _, instance in tqdm(etree.iterparse(corpus_path,tag="instance", events=("start",))):
+        for _, instance in etree.iterparse(corpus_path, tag="instance", events=("start",)):
             tokenid = instance.attrib["id"]
             lemmapos = instance.attrib["lemma"].lower() + "#" + get_simplified_pos(instance.attrib["pos"])
             lemmapos2gold[lemmapos] = lemmapos2gold.get(lemmapos, set())
             lemmapos2gold[lemmapos].add(key2gold[tokenid].replace("%5", "%3"))
         for lemmapos, golds in lemmapos2gold.items():
             lemmapos2gold[lemmapos] = set(filter(lambda x: x is not None, [gold_transformer(g) for g in golds]))
-        print("lemma 2 gold loaded")
         return Lemma2Synsets(data=lemmapos2gold)
 
     @staticmethod
@@ -58,7 +55,7 @@ class Lemma2Synsets(dict):
                 fields = line.strip().split(" ")
                 key = fields[0]
                 pos = get_pos_from_key(key)
-                offset = fields[1] + pos
+                offset = "wn:" + fields[1] + pos
                 lexeme = key.split("%")[0] + "#" + pos
                 golds = lemmapos2gold.get(lexeme, set())
                 golds.add(offset)
@@ -66,17 +63,22 @@ class Lemma2Synsets(dict):
         return Lemma2Synsets(data=lemmapos2gold)
 
     @staticmethod
-    def from_bn_mapping(langs=("en")):
+    def from_bn_mapping(langs=("en"), sense_inventory=None, **kwargs):
+        reliable = True
+        # if sense_inventory is not None and "bnoffsets" in sense_inventory:
+        #     reliable = "bnoffsets_reliable" == sense_inventory
         lemmapos2gold = dict()
         for lang in langs:
-            with open("resources/lexeme_to_synsets/lexeme_to_bnoffsets.{}.txt".format(lang)) as lines:
+            with open("resources/lexeme_to_synsets/lexeme2synsets.reliable_sources.{}.txt".format(lang)) as lines:
                 for line in lines:
-                    fields = line.strip().split("\t")
+                    fields = line.strip().lower().split("\t")
+                    if len(fields) < 2:
+                        continue
                     lemmapos = fields[0]
-                    synset = fields[1]
-                    synsets = lemmapos2gold.get(lemmapos, set())
-                    synsets.add(synset)
-                    lemmapos2gold[lemmapos] = synsets
+                    synsets = fields[1:]
+                    old_synsets = lemmapos2gold.get(lemmapos, set())
+                    old_synsets.update(synsets)
+                    lemmapos2gold[lemmapos] = old_synsets
         return Lemma2Synsets(data=lemmapos2gold)
 
     @staticmethod
