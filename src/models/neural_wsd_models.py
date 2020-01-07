@@ -365,6 +365,7 @@ class AllenWSDModel(Model):
             possible_classes_mask[:, 0] = 0
         labeled_logits = labeled_logits * possible_classes_mask
         predictions = None
+
         if not self.training:
             predictions = self.get_predictions(labeled_logits)
             self.accuracy([x for y in labeled_lemmapos for x in y], predictions.tolist(), flatten_labels)
