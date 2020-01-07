@@ -4,8 +4,8 @@ data:
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
     - data2/training_data/multilingual_training_data/onesec/it/onesec.it.test_set_lemmas.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
-  sense_inventory: babelnet
-  label_from: bnids_manual
+  sense_inventory: bnoffsets
+  label_from_training: False
   gold_id_separator: " "
   outpath: data3/models/it_onesec_manual_mapping
   mfs_file: resources/mfs/mfs_bn.it.bnids.txt

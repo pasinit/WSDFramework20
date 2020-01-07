@@ -166,11 +166,11 @@ def main(args):
     langs = data_config["langs"]
     sense_inventory = data_config["sense_inventory"]
     gold_id_separator = data_config["gold_id_separator"]
-    label_from = data_config["label_from"]
-    max_sentence_token = data_config["max_sentence_token"]
-    max_segments_in_batch = data_config["max_segments_in_batch"]
+    label_from_training = data_config["label_from_training"]
+    # max_sentence_token = data_config["max_sentence_token"]
+    # max_segments_in_batch = data_config["max_segments_in_batch"]
     mfs_file = data_config.get("mfs_file", None)
-    sliding_window = data_config["sliding_window"]
+    # sliding_window = data_config["sliding_window"]
     device = model_config["device"]
     model_name = model_config["model_name"]
     checkpoint_path = args.checkpoint_path
@@ -186,19 +186,18 @@ def main(args):
     # outpath = os.path.join(outpath, model_name)
     token_indexer, padding = get_token_indexer(model_name)
 
-    if label_from == "wnoffsets":
-        dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
-    elif label_from == "sensekeys":
-        dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
-    elif "bnids" in label_from:
-        dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
-    elif label_from == "training":
+    if label_from_training:
         dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
-
+    elif sense_inventory == "wnoffsets":
+        dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
+    elif sense_inventory == "sensekeys":
+        dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
+    elif sense_inventory == "bnoffsets":
+        dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
     else:
         raise RuntimeError(
-            "%s label_from has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnids}" % (
-                label_from))
+            "%s sense_inventory has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnoffsets}" % (
+                sense_inventory))
 
     reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
                                                                          sliding_window=35,
