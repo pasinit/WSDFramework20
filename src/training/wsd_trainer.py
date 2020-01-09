@@ -18,6 +18,7 @@ from torch import optim
 from src.data.dataset_utils import get_pos_from_key
 
 from src.data.datasets import Vocabulary, AllenWSDDatasetReader
+from src.evaluation.evaluate_model import evaluate_datasets
 from src.misc.wsdlogging import get_info_logger
 from src.models.core import PretrainedXLMIndexer, PretrainedRoBERTaIndexer
 from src.models.neural_wsd_models import AllenWSDModel, WSDOutputWriter
@@ -43,6 +44,7 @@ def build_outpath_subdirs(path):
     except:
         pass
 
+
 def get_token_indexer(model_name):
     if model_name.startswith("bert-"):
         return PretrainedBertIndexer(
@@ -51,20 +53,21 @@ def get_token_indexer(model_name):
             truncate_long_sequences=False
         ), 0
     if model_name.startswith("xlm-"):
-        indexer= PretrainedXLMIndexer(
+        indexer = PretrainedXLMIndexer(
             pretrained_model=model_name,
             do_lowercase=False,
             truncate_long_sequences=False
         )
         return indexer, indexer.padding()
     if model_name.startswith("roberta-"):
-        indexer= PretrainedRoBERTaIndexer(
+        indexer = PretrainedRoBERTaIndexer(
             pretrained_model=model_name,
             do_lowercase=False,
             truncate_long_sequences=False
         )
         return indexer, indexer.padding()
     raise RuntimeError("Unknown model name: {}, cannot instanciate any indexer".format(model_name))
+
 
 def main(args):
     with open(args.config) as reader:
@@ -105,11 +108,11 @@ def main(args):
     if label_from_training:
         dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
     elif sense_inventory == "wnoffsets":
-            dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
+        dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
     elif sense_inventory == "sensekeys":
-            dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
+        dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
     elif sense_inventory == "bnoffsets":
-            dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
+        dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
     else:
         raise RuntimeError(
             "%s sense_inventory has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnoffsets}" % (
@@ -125,9 +128,10 @@ def main(args):
                                                                          mfs_file=mfs_file,
                                                                          sense_inventory=sense_inventory,
                                                                          lazy=data_config.get("lazy", False))
-    model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int, label_vocab,
-                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                   cache_vectors=cache_instances, pad_token_id=padding)
+    model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
+                                                          label_vocab,
+                                                          vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
+                                                          cache_vectors=cache_instances, pad_token_id=padding)
     logger.info("loading training data...")
     train_ds = reader.read(training_paths)
 
@@ -185,6 +189,11 @@ def main(args):
         torch.save(model.state_dict(), writer)
     with open(os.path.join(outpath, "label_vocab.pkl"), "wb") as writer:
         pkl.dump(label_vocab, writer)
+
+    evaluate_datasets(test_paths, reader, os.path.join(outpath, "checkpoints", "best.th"), model_name, label_vocab,
+                      lemma2synsets, device_int,
+                      mfs_dictionary, mfs_dictionary is not None, args.output_path, padding, verbose=True,
+                      debug=False)
 
 
 # os.environ["WANDB_MODE"] = "dryrun"
