@@ -22,7 +22,6 @@ from src.data.dataset_utils import get_wnkeys2wnoffset, get_wnkeys2bnoffset, get
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 WORDNE_DICT_PATH = "/opt/WordNet-3.0/dict/index.sense"
-print()
 
 def load_bn_offset2bnid_map(path):
     offset2bnid = dict()
