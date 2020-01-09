@@ -1,6 +1,5 @@
 .*
 *__pycache__*
-data
 *.log
 resources
 wandb
@@ -18,4 +17,5 @@ xlm_fr_log.txt
 data2/models
 data2
 data_bkp
-data*
+data3
+data/
