@@ -146,12 +146,13 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-        # instances_per_epoch=10000
+        # instances_per_epoch=10
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         biggest_batch_first=True,
         sorting_keys=[("tokens", "num_tokens")],
+        cache_instances=True
         # instances_per_epoch=10
 
     )

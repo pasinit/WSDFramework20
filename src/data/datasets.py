@@ -142,6 +142,7 @@ class AllenWSDDatasetReader(DatasetReader):
         self.sense_inventory = sense_inventory
         self.max_sentence_len = max_sentence_len
         self.sliding_window_size = sliding_window_size
+        self.start = 0
 
     def read(self, file_path: Union[str, List]) -> Iterable[Instance]:
         """
@@ -200,12 +201,13 @@ class AllenWSDDatasetReader(DatasetReader):
             return instances
 
     def _read(self, file_paths: Union[str, List]) -> Iterable[Instance]:
+        self.start = 0
         if type(file_paths) != list:
             file_paths = [file_paths]
-        for file_path in file_paths:
+        for i, file_path in enumerate(file_paths):
             gold_file = file_path.replace(".data.xml", ".gold.key.txt")
             tokid2gold = self.load_gold_file(gold_file)
-            yield from self.load_xml(tokid2gold, file_path)
+            yield from self.load_xml(tokid2gold, file_path, file_path.split("/")[-1].replace(".data.xml", ""))
 
     def get_goldid_by_key(self, key):
         goldid = self.key2goldid.get(key, None)
@@ -243,13 +245,12 @@ class AllenWSDDatasetReader(DatasetReader):
                 key2gold[key] = gold
         return key2gold
 
-    def load_xml(self, tokid2gold, file_path):
+    def load_xml(self, tokid2gold, file_path, dataset_id):
         # root = etree.parse(file_path)
         # words = list()
         # lemmaposs = list()
         # ids = list()
         # labels = list()
-        start = 0
         for _, sentence in etree.iterparse(file_path, tag="sentence"):
             words = list()
             lemmaposs = list()
@@ -272,21 +273,26 @@ class AllenWSDDatasetReader(DatasetReader):
             if len(words) > self.max_sentence_len:
                 for w_window, lp_window, iis_window, ls_window in self.sliding_window(words, lemmaposs, ids, labels):
                     if len(w_window) > 0 and any(x is not None for x in iis_window):
-                        unique_token_ids = [i+start for i in range(len(iis_window)) if iis_window[i] is not None]
+                        unique_token_ids = list(range(self.start, self.start + len([x for x in iis_window if x is not None])))
+                        # unique_token_ids = [i+self.start for i in range(len(iis_window)) if iis_window[i] is not None]
                         # if 2354 in unique_token_ids:
                         #     print()
                         yield self.text_to_instance(unique_token_ids, w_window, lp_window, iis_window, np.array(ls_window))
-                        start += unique_token_ids[-1] + 1
+                        self.start += len(unique_token_ids)#unique_token_ids[-1] + 1
+
             else:
                 if any(x is not None for x in ids):
-                    unique_token_ids = [i + start for i in range(len(ids)) if ids[i] is not None]
+                    unique_token_ids = list(range(self.start, self.start + len([x for x in ids if x is not None])))
+                    # unique_token_ids = [i + self.start for i in range(len(ids)) if ids[i] is not None]
                     # if 2354 in unique_token_ids:
                     #     print()
                     yield self.text_to_instance(unique_token_ids, words, lemmaposs, ids, np.array(labels))
-                    start += unique_token_ids[-1] + 1
-        # if len(words) > 0:
+                    # self.start += unique_token_ids[-1] + 1
+                    self.start += len(unique_token_ids)  # unique_token_ids[-1] + 1
+            # break
+            # if len(words) > 0:
         #     yield self.text_to_instance(words, lemmaposs, ids, np.array(labels))
-
+        #     print(self.start)
     def sliding_window(self, words, lemmapos, ids, labels):
         for i in range(0, len(words), self.sliding_window_size):
             w_window = words[i:i + self.max_sentence_len]

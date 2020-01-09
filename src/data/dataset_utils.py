@@ -3,7 +3,9 @@ from allennlp_mods.callbacks import OutputWriter
 
 
 def get_wnoffset2bnoffset():
-    return __load_reverse_multimap("resources/mappings/all_bn_wn.txt")
+    offset2bn = __load_reverse_multimap("resources/mappings/all_bn_wn.txt")
+    new_offset2bn ={"wn:"+offset:bns for offset,bns in offset2bn.items()}
+    return new_offset2bn
 
 
 def get_bnoffset2wnoffset():
@@ -126,7 +128,26 @@ class SemEvalOutputWriter(OutputWriter):
         for i, p, l in zip(ids, predictions, labels):
             self.writer.write(i + "\t" + self.labeldict[p] + "\t" + self.labeldict[l] + "\n")
 
+def build_en_bn_lexeme2synsets_mapping(output_path):
+    lemmapos2gold = dict()
+    wnoffset2bnoffset = get_wnoffset2bnoffset()
+    with open("/opt/WordNet-3.0/dict/index.sense") as lines:
+        for line in lines:
+            fields = line.strip().split(" ")
+            key = fields[0]
+            pos = get_pos_from_key(key)
+            offset = "wn:" + fields[1] + pos
+            bnoffset = wnoffset2bnoffset[offset]
+            lexeme = key.split("%")[0] + "#" + pos
+            golds = lemmapos2gold.get(lexeme, set())
+            golds.update(bnoffset)
+            lemmapos2gold[lexeme] = golds
+    with open(output_path, "wt") as writer:
+        for lemmapos, bnids in lemmapos2gold.items():
+            writer.write(lemmapos + "\t" + "\t".join(bnids) + "\n")
 
+if __name__ == "__main__":
+    build_en_bn_lexeme2synsets_mapping("resources/lexeme_to_synsets/lexeme2synsets.reliable_sources.en.txt")
 # def serialise_dataset(xml_data_path, key_gold_path, vocabulary_path, tokeniser, model_name, out_file,
 #                       key2bnid_path=None, key2wnid_path=None):
 #     vocabulary = Vocabulary.vocabulary_from_gold_key_file(vocabulary_path, key2bnid_path=key2bnid_path)
