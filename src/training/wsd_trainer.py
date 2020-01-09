@@ -17,12 +17,14 @@ from torch import optim
 
 from src.data.dataset_utils import get_pos_from_key
 
-from src.data.datasets import Vocabulary, AllenWSDDatasetReader, get_token_indexer
+from src.data.datasets import Vocabulary, AllenWSDDatasetReader
 from src.evaluation.evaluate_model import evaluate_datasets
 from src.misc.wsdlogging import get_info_logger
 from src.models.core import PretrainedXLMIndexer, PretrainedRoBERTaIndexer
 from src.models.neural_wsd_models import AllenWSDModel, WSDOutputWriter
 import numpy as np
+
+from src.utils.utils import get_token_indexer
 
 torch.random.manual_seed(42)
 np.random.seed(42)

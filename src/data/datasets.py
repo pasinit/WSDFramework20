@@ -18,36 +18,10 @@ import os
 from src.data.data_structures import Lemma2Synsets
 from src.data.dataset_utils import get_wnkeys2wnoffset, get_wnkeys2bnoffset, get_simplified_pos, get_pos_from_key, \
     get_wnoffset2bnoffset, get_wnoffset2wnkeys, get_bnoffset2wnoffset, get_bnoffset2wnkeys
-from src.models.core import PretrainedXLMIndexer, PretrainedRoBERTaIndexer
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 WORDNE_DICT_PATH = "/opt/WordNet-3.0/dict/index.sense"
-
-
-def get_token_indexer(model_name):
-    if model_name.startswith("bert-"):
-        return PretrainedBertIndexer(
-            pretrained_model=model_name,
-            do_lowercase=False,
-            truncate_long_sequences=False
-        ), 0
-    if model_name.startswith("xlm-"):
-        indexer = PretrainedXLMIndexer(
-            pretrained_model=model_name,
-            do_lowercase=False,
-            truncate_long_sequences=False
-        )
-        return indexer, indexer.padding()
-    if model_name.startswith("roberta-"):
-        indexer = PretrainedRoBERTaIndexer(
-            pretrained_model=model_name,
-            do_lowercase=False,
-            truncate_long_sequences=False
-        )
-        return indexer, indexer.padding()
-    raise RuntimeError("Unknown model name: {}, cannot instanciate any indexer".format(model_name))
-
 
 def load_bn_offset2bnid_map(path):
     offset2bnid = dict()
@@ -254,7 +228,6 @@ class AllenWSDDatasetReader(DatasetReader):
     def load_key2goldid(self, golds):
         aux = AllenWSDDatasetReader.get_label_mapper(self.sense_inventory, set(golds))
         return aux if aux is not None else {}
-
     def load_gold_file(self, gold_file):
         key2gold = dict()
         with open(gold_file) as lines:
@@ -299,14 +272,12 @@ class AllenWSDDatasetReader(DatasetReader):
             if len(words) > self.max_sentence_len:
                 for w_window, lp_window, iis_window, ls_window in self.sliding_window(words, lemmaposs, ids, labels):
                     if len(w_window) > 0 and any(x is not None for x in iis_window):
-                        unique_token_ids = list(
-                            range(self.start, self.start + len([x for x in iis_window if x is not None])))
+                        unique_token_ids = list(range(self.start, self.start + len([x for x in iis_window if x is not None])))
                         # unique_token_ids = [i+self.start for i in range(len(iis_window)) if iis_window[i] is not None]
                         # if 2354 in unique_token_ids:
                         #     print()
-                        yield self.text_to_instance(unique_token_ids, w_window, lp_window, iis_window,
-                                                    np.array(ls_window))
-                        self.start += len(unique_token_ids)  # unique_token_ids[-1] + 1
+                        yield self.text_to_instance(unique_token_ids, w_window, lp_window, iis_window, np.array(ls_window))
+                        self.start += len(unique_token_ids)#unique_token_ids[-1] + 1
 
             else:
                 if any(x is not None for x in ids):
@@ -321,7 +292,6 @@ class AllenWSDDatasetReader(DatasetReader):
             # if len(words) > 0:
         #     yield self.text_to_instance(words, lemmaposs, ids, np.array(labels))
         #     print(self.start)
-
     def sliding_window(self, words, lemmapos, ids, labels):
         for i in range(0, len(words), self.sliding_window_size):
             w_window = words[i:i + self.max_sentence_len]
@@ -397,8 +367,7 @@ class AllenWSDDatasetReader(DatasetReader):
     @staticmethod
     def get_label_mapper(target_inventory, labels):
         label_types = set(
-            ["wnoffsets" if l.startswith("wn:") else "bnoffsets" if l.startswith("bn:") else "sensekeys" for l in labels
-             if l != "<pad>" and l != "<unk>"])
+            ["wnoffsets" if l.startswith("wn:") else "bnoffsets" if l.startswith("bn:") else "sensekeys" for l in labels if l != "<pad>" and l != "<unk>"])
         if target_inventory in label_types:
             label_types.remove(target_inventory)
         if len(label_types) > 1:
