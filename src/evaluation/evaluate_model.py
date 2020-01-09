@@ -10,14 +10,14 @@ from argparse import ArgumentParser
 from pandas import DataFrame
 from tqdm import tqdm
 
-from src.data.datasets import AllenWSDDatasetReader
+from src.data.datasets import AllenWSDDatasetReader, get_token_indexer
 from src.models.neural_wsd_models import AllenWSDModel, WSDF1
 import torch
 
 import os
 import yaml
 
-from src.training.wsd_trainer import get_token_indexer
+# from src.training.wsd_trainer import get_token_indexer
 
 
 def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_mfs=False, mfs_vocab=None,
