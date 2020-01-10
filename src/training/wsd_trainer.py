@@ -167,10 +167,12 @@ def main(args):
         torch.save(model.state_dict(), writer)
     with open(os.path.join(outpath, "label_vocab.pkl"), "wb") as writer:
         pkl.dump(label_vocab, writer)
-
+    if not os.path.exists(os.path.join(outpath, "evaluation")):
+        os.mkdir(os.path.join(outpath, "evaluation"))
     evaluate_datasets(test_paths, reader, os.path.join(outpath, "checkpoints", "best.th"), model_name, label_vocab,
                       lemma2synsets, device_int,
-                      mfs_dictionary, mfs_dictionary is not None, args.output_path, padding, verbose=True,
+                      mfs_dictionary, mfs_dictionary is not None, os.path.join(outpath, "evaluation"), padding,
+                      verbose=True,
                       debug=False)
 
 
