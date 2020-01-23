@@ -111,9 +111,19 @@ class LabelVocabulary(Vocab):
 
     @classmethod
     def bnoffset_vocabulary(cls):
-        with open("resources/vocabularies/bn_vocabulary.txt") as lines:
-            bnoffsets = [line.strip() for line in lines]
-        return LabelVocabulary(Counter(sorted(bnoffsets)), specials=["<pad>", "<unk>"])
+        # with open("resources/vocabularies/bn_vocabulary.txt") as lines:
+        #     bnoffsets = [line.strip() for line in lines]
+        wn2bn = get_wnoffset2bnoffset()
+        offsets = set()
+        with open(WORDNE_DICT_PATH) as lines:
+            for line in lines:
+                fields = line.strip().split(" ")
+                key = fields[0]
+                pos = get_pos_from_key(key)
+                offset = "wn:" + fields[1] + pos
+                bnoffset = wn2bn[offset]
+                offsets.update(bnoffset)
+        return LabelVocabulary(Counter(sorted(offsets)), specials=["<pad>", "<unk>"])
 
     @classmethod
     def wn_sensekey_vocabulary(cls):
@@ -456,10 +466,23 @@ class AllenWSDDatasetReader(DatasetReader):
     def get_wnoffsets_dataset(indexers: Dict[str, Any], sliding_window=32, max_sentence_token=64,
                               gold_id_separator=" ", langs=None, mfs_file=None,
                               **kwargs):
-        if langs is not None:
-            logger.warning("the argument langs: {} is ignored by this method.".format(",".join(langs)))
+        # if langs is not None:
+        #     logger.warning("the argument langs: {} is ignored by this method.".format(",".join(langs)))
         label_vocab = LabelVocabulary.wnoffset_vocabulary()
         lemma2synsets = Lemma2Synsets.offsets_from_wn_sense_index()
+        if langs is not None:
+            if "en" in langs:
+                langs.remove("en")
+            if len(langs) >0:
+                bn2wn = get_bnoffset2wnoffset()
+                bnlemma2synsets = Lemma2Synsets.from_bn_mapping(langs, **kwargs)
+                for key, bns in bnlemma2synsets.items():
+                    wns = [x for y in bns for x in bn2wn[y]]
+                    if key in lemma2synsets:
+                        lemma2synsets[key].update(wns)
+                    else:
+                        lemma2synsets[key]=wns
+
         for key, synsets in lemma2synsets.items():
             lemma2synsets[key] = [label_vocab.get_idx(l) for l in synsets]
         # key_mapper = AllenWSDDatasetReader.get_label_mapper("wnoffset", label_vocab.stoi.keys())
