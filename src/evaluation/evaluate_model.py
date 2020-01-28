@@ -54,12 +54,13 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                 writer.write(
                     "\n".join(["{} {}".format(id, label_vocab.itos[p]) for id, p in zip(i_ids, i_predictions)]))
                 writer.write("\n")
-                mfs_preds = [mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p] for
-                             lp, p in
-                             zip(lemmapos, i_predictions)]
-                mfs_writer.write(
-                    "\n".join(["{} {}".format(id, p) for id, p in zip(i_ids, mfs_preds)]))
-                mfs_writer.write("\n")
+                if mfs_vocab is not None:
+                    mfs_preds = [mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p] for
+                                 lp, p in
+                                 zip(lemmapos, i_predictions)]
+                    mfs_writer.write(
+                        "\n".join(["{} {}".format(id, p) for id, p in zip(i_ids, mfs_preds)]))
+                    mfs_writer.write("\n")
                 if debug:
                     debugwriter.write(" ".join(x.text for x in instance.fields["tokens"]) + "\n")
                     for id, lp, p, label, possible_labels in zip(i_ids, lemmapos, i_predictions, i_labels,

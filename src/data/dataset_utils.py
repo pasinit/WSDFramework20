@@ -9,7 +9,7 @@ def get_wnoffset2bnoffset():
 
 
 def get_bnoffset2wnoffset():
-    return __load_multimap("resources/mappings/all_bn_wn.txt")
+    return __load_multimap("resources/mappings/all_bn_wn.txt", value_transformer=lambda x: "wn:"+x)
 
 
 def get_wnkeys2bnoffset():
