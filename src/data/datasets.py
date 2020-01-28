@@ -3,6 +3,7 @@ from collections import OrderedDict, Counter
 from typing import Iterable, List, Dict, Callable, Any, Union
 
 import numpy as np
+import re
 from allennlp.common import Tqdm
 from allennlp.common.checks import ConfigurationError
 from allennlp.data import DatasetReader, Instance, TokenIndexer, Vocabulary
@@ -242,7 +243,7 @@ class AllenWSDDatasetReader(DatasetReader):
         key2gold = dict()
         with open(gold_file) as lines:
             for line in lines:
-                fields = line.strip().split(" ")
+                fields = re.split("\s", line.strip())
                 key, *gold = fields
                 if self.key2goldid is None:
                     self.key2goldid = self.load_key2goldid(gold)
