@@ -7,14 +7,14 @@ data:
     - fr
     - de
   #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
-  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+  test_data_root: /home/tommaso/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
-    - data2/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_manual.data.xml
-    - data2/training_data/en_training_data/onesec_original_data/onesec_testset_instances/OneSeC_EN.data.xml
+    - data/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_manual.data.xml
+    - data/training_data/en_training_data/onesec_original_data/onesec_testset_instances/OneSeC_EN.data.xml
   sense_inventory: wnoffsets 
   label_from_training: False 
   gold_id_separator: " "
-  outpath: data3/models/en_semcor+wng+onesec_wnoffsets_full/
+  outpath: data2/models/en_semcor+wng+onesec_wnoffsets_full/
   #mfs_file: resources/mfs/mfs_wn.en.wnoffset.txt
   test_names:
       #- senseval2
