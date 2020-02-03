@@ -1,4 +1,5 @@
 data:
+  lazy: True
   langs:
     - it
   test_data_root: /home/tommaso/Documents/data/SemEval/dataset_onesec/

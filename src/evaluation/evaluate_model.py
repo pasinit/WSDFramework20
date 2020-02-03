@@ -7,10 +7,12 @@ from allennlp.data.token_indexers import PretrainedBertIndexer
 from allennlp.predictors import SentenceTaggerPredictor
 from argparse import ArgumentParser
 
+from data_io.datasets import AllenWSDDatasetReader
 from pandas import DataFrame
 from tqdm import tqdm
 
-from src.data.datasets import AllenWSDDatasetReader
+from src.data.dataset_utils import get_dataset_with_labels_from_data, get_wnoffsets_dataset, get_sensekey_dataset, \
+    get_bnoffsets_dataset, get_label_mapper
 from src.models.neural_wsd_models import AllenWSDModel, WSDF1
 import torch
 
@@ -33,7 +35,7 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
     # )
     f1_computer = WSDF1(label_vocab, use_mfs, mfs_vocab)
     predictor = SentenceTaggerPredictor(model, dataset_reader)
-    batches = [x for x in iterator._create_batches(dataset_reader.read(dataset_path), False)]
+    batches = [x for x in iterator._create_batches(dataset_reader.read(dataset_path, label_mapper_getter=get_label_mapper), False)]
     with open(output_path, "w") as writer, open(output_path.replace(".txt", ".mfs.txt"), "w") as mfs_writer, \
             open(output_path.replace(".txt", ".mfs.info.txt"), "w") as mfs_info_writer:
         bar = batches
@@ -55,7 +57,8 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                     "\n".join(["{} {}".format(id, label_vocab.itos[p]) for id, p in zip(i_ids, i_predictions)]))
                 writer.write("\n")
                 if mfs_vocab is not None:
-                    mfs_preds = [mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p] for
+                    mfs_preds = [mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
+                                 for
                                  lp, p in
                                  zip(lemmapos, i_predictions)]
                     mfs_writer.write(
@@ -189,13 +192,13 @@ def main(args):
     token_indexer, padding = get_token_indexer(model_name)
 
     if label_from_training:
-        dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
+        dataset_builder = get_dataset_with_labels_from_data
     elif sense_inventory == "wnoffsets":
-        dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
+        dataset_builder = get_wnoffsets_dataset
     elif sense_inventory == "sensekeys":
-        dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
+        dataset_builder = get_sensekey_dataset
     elif sense_inventory == "bnoffsets":
-        dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
+        dataset_builder = get_bnoffsets_dataset
     else:
         raise RuntimeError(
             "%s sense_inventory has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnoffsets}" % (
@@ -218,15 +221,16 @@ def main(args):
         checkpoint_path = os.path.join(checkpoint_path, "model_state_epoch_{}.th".format(epoch))
         print("best checpoint: {}".format(checkpoint_path))
     evaluate_datasets(test_paths, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
-                      mfs_dictionary, mfs_dictionary is not None, args.output_path, padding, verbose=verbose, debug=debug)
+                      mfs_dictionary, mfs_dictionary is not None, args.output_path, padding, verbose=verbose,
+                      debug=debug)
 
 
 def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
                         mfs_dictionary, output_path, use_mfs, metric_to_track="f1_mfs", verbose=True):
     model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
-                                                   label_vocab,
-                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                   eval=True, finetune_embedder=False, return_full_output=True)
+                                                          label_vocab,
+                                                          vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
+                                                          eval=True, finetune_embedder=False, return_full_output=True)
     num_checkpoints = len([x for x in os.listdir(checkpoint_path) if "model_state_epoch" in x])
     best_epoch = -1
     best_metric = -1
