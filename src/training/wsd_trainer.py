@@ -106,7 +106,8 @@ def main(args):
                                                           label_vocab,
                                                           vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
                                                           cache_vectors=cache_instances, pad_token_id=padding,
-                                                          finetune_embedder=finetune_embedder)
+                                                          finetune_embedder=finetune_embedder,
+                                                          model_path=model_config.get("model_path", None))
     logger.info("reading training data...")
     train_ds = reader.read(training_paths, label_mapper_getter=get_label_mapper)
 
@@ -125,8 +126,7 @@ def main(args):
         sorting_keys=[("tokens", "num_tokens")],
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
         cache_instances=True,
-        
-        #instances_per_epoch=10
+        # instances_per_epoch=10
     )
     valid_iterator = BucketIterator(
         maximum_samples_per_batch=("tokens_length", max_segments_in_batch),

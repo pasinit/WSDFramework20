@@ -1,4 +1,5 @@
 data:
+  lazy: True
   langs:
     - it
   test_data_root: /home/tommaso/Documents/data/SemEval/dataset_onesec/ #/home/tommaso/Documents/data/WSD_Evaluation_Framework/Evaluation_Datasets/

@@ -1,23 +1,21 @@
 data:
+  lazy: True
   langs:
     - fr 
-  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+  test_data_root: /home/tommaso/Documents/data/SemEval/dataset_onesec/
   train_data_root:
     - /home/tommaso/Documents/data/train-o-matic/FR/evaluation-framework-ims-training.fw20.new.data.xml
   sense_inventory: bnoffsets
   label_from_training: False
   gold_id_separator: " "
   outpath: data3/models/it_tom
-  mfs_file: resources/mfs/mfs_bn.it.bnids.txt
+  #mfs_file: resources/mfs/mfs_bn.it.bnids.txt
   test_names:
-    - wiki_dev_it
-    - wiki_test_it
-    - semeval2013_it_wnfilter
-    - semeval2015_it_wnfilter
+    - semeval2013_fr
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
-  dev_name: wiki_dev_it
+  #dev_name: wiki_dev_it
 
 
 model:

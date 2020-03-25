@@ -5,6 +5,8 @@ from src.models.core import PretrainedXLMIndexer, PretrainedRoBERTaIndexer
 
 
 def get_token_indexer(model_name):
+    if model_name.lower() == "nhs":
+        model_name = "bert-base-multilingual-cased"
     if model_name.startswith("bert-"):
         return PretrainedBertIndexer(
             pretrained_model=model_name,

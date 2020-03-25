@@ -266,12 +266,20 @@ class AllenWSDModel(Model):
                                         mfs_dictionary=None,
                                         vocab=None,
                                         return_full_output=False,
-                                        eval=False, finetune_embedder=False, cache_vectors=False):
+                                        eval=False, finetune_embedder=False, cache_vectors=False,
+                                        model_path=None):
         vocab = Vocabulary() if vocab is None else vocab
+        if model_name.lower() == "nhs":
+            model_name = "bert-base-multilingual-cased"
         text_embedder = PretrainedTransformerEmbedder(pretrained_model=model_name,
                                                       top_layer_only=True,  # conserve memory
                                                       requires_grad=not eval and finetune_embedder,
                                                       pad_token_id=pad_token_id)
+        if model_path is not None:
+            state_dict = torch.load(model_path)
+            updated_state_dict = {k.replace("bert.", "model."):v for k, v in state_dict.items()}
+            text_embedder.load_state_dict(updated_state_dict, strict=False)
+
         # for param in text_embedder.parameters():
         #     param.requires_grad = finetune_embedder and not eval
         # if finetune_embedder:
