@@ -1,11 +1,16 @@
 from collections import Counter
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, Union, Callable
 
 import torch
+from allennlp.data.dataset_readers.dataset_reader import AllennlpDataset
+from allennlp.data.token_indexers import PretrainedTransformerIndexer
+from allennlp.data.tokenizers import PretrainedTransformerTokenizer
 from allennlp_mods.callbacks import OutputWriter
 from data_io.data_utils import Lemma2Synsets
-from data_io.datasets import LabelVocabulary, AllenWSDDatasetReader
+from data_io.datasets import LabelVocabulary, AllenWSDDatasetReader, WSDDataset
 import logging
+
+from deprecated import deprecated
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -190,33 +195,6 @@ def get_label_mapper(target_inventory, labels):
             raise RuntimeError("Cannot infer label type from {}".format(label_type))
 
 
-def get_dataset_with_labels_from_data(indexers: Dict[str, Any], training_data_xmls, sliding_window=32,
-                                      max_sentence_token=64, gold_id_separator=" ", sense_inventory="babelnet",
-                                      mfs_file=None,
-                                      **kwargs):
-    labels = set()
-    lemma2synsetslist = list()
-    for xml_path in training_data_xmls:
-        gold_path = xml_path.replace("data.xml", "gold.key.txt")
-        lemma2synsetslist.append(Lemma2Synsets.from_corpus_xml(xml_path))
-        vocab = vocabulary_from_gold_key_file(gold_path)
-        labels.update(vocab.stoi.keys())
-    key_mapper = get_label_mapper(sense_inventory, labels)
-    labels = list([list(key_mapper.get(x, {x}))[0] if key_mapper is not None else x for x in labels])
-    labels = sorted(labels)
-    label_vocab = LabelVocabulary(Counter(labels), specials=["<pad>", "<unk>"])
-    lemma2classes = dict()
-    for l2s in lemma2synsetslist:
-        for lemma, synsets in l2s.items():
-            all_classes = lemma2classes.get(lemma, set())
-            all_classes.update(
-                [label_vocab.get_idx(y) for x in synsets for y in (key_mapper.get(x, [x]) if key_mapper else [x])])
-            lemma2classes[lemma] = all_classes
-    lemma2classes = Lemma2Synsets(data=lemma2classes)
-    return get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
-                                             label_vocab, lemma2classes, mfs_file, sense_inventory, **kwargs)
-
-
 def get_mfs_vocab(mfs_file):
     if mfs_file is None:
         return None
@@ -230,25 +208,45 @@ def get_mfs_vocab(mfs_file):
     return mfs
 
 
-def get_dataset(indexers: Dict[str, Any], sliding_window, max_sentence_token, gold_id_separator,
-                label_vocab, lemma2synsets, mfs_file, sense_inventory, **kwargs):
-    reader = AllenWSDDatasetReader(sense_inventory, None, indexers, label_vocab=label_vocab,
-                                   lemma2synsets=lemma2synsets,
-                                   max_sentence_len=max_sentence_token,
-                                   sliding_window_size=sliding_window,
-                                   # key2goldid=gold_mapper,
-                                   gold_key_id_separator=gold_id_separator, **kwargs)
-    if label_vocab is None:
-        label_vocab = reader.label_vocab
+def get_dataset(model_name: str,
+                paths: Union[str, list],
+                lemma2synsets: Lemma2Synsets,
+                mfs_file: str,
+                label_mapper: Dict[str, str],
+                label_vocab: LabelVocabulary) \
+        -> Tuple[AllennlpDataset, Lemma2Synsets, Dict]:
+    indexer = PretrainedTransformerIndexer(model_name)
+    tokenizer = PretrainedTransformerTokenizer(model_name)
+    dataset = WSDDataset(paths, lemma2synsets=lemma2synsets, label_mapper=label_mapper, tokenizer=tokenizer,
+                         indexer=indexer, label_vocab=label_vocab)
     mfs_vocab = get_mfs_vocab(mfs_file)
-    return reader, lemma2synsets, label_vocab, mfs_vocab
+    return dataset, lemma2synsets, mfs_vocab
 
 
-def get_wnoffsets_dataset(indexers: Dict[str, Any], sliding_window=32, max_sentence_token=64,
-                          gold_id_separator=" ", langs=None, mfs_file=None,
-                          **kwargs):
-    # if langs is not None:
-    #     logger.warning("the argument langs: {} is ignored by this method.".format(",".join(langs)))
+@deprecated(reason="this method is not maintained anymore, it might brake things")
+def get_dataset_with_labels_from_data(model_name, paths, label_mapper, langs, mfs_file=None, **kwargs):
+    labels = set()
+    lemma2synsetslist = list()
+    for path in paths:
+        with open(path.replace("data.xml", "gold.key.txt")) as lines:
+            for line in lines:
+                labels.update(line.strip().split(" ")[1:])
+    labels = list([list(label_mapper.get(x, {x}))[0] if label_mapper is not None else x for x in labels])
+    labels = sorted(labels)
+    label_vocab = LabelVocabulary(Counter(labels), specials=["<pad>", "<unk>"])
+    lemma2classes = dict()
+    for l2s in lemma2synsetslist:
+        for lemma, synsets in l2s.items():
+            all_classes = lemma2classes.get(lemma, set())
+            all_classes.update(
+                [label_vocab.get_idx(y) for x in synsets for y in (label_mapper.get(x, [x]) if label_mapper else [x])])
+            lemma2classes[lemma] = all_classes
+    lemma2classes = Lemma2Synsets(data=lemma2classes)
+    return get_dataset(model_name, paths, lemma2classes, mfs_file, label_mapper, label_vocab)
+
+
+def get_wnoffsets_dataset(model_name, paths, label_mapper, langs, mfs_file=None,
+                          **kwargs) -> Tuple[AllennlpDataset, Lemma2Synsets, Dict]:
     label_vocab = wnoffset_vocabulary()
     lemma2synsets = offsets_from_wn_sense_index()
     if langs is not None:
@@ -265,34 +263,32 @@ def get_wnoffsets_dataset(indexers: Dict[str, Any], sliding_window=32, max_sente
                     lemma2synsets[key] = wns
 
     for key, synsets in lemma2synsets.items():
-        lemma2synsets[key] = [label_vocab.get_idx(l) for l in synsets]
-    # key_mapper = AllenWSDDatasetReader.get_label_mapper("wnoffset", label_vocab.stoi.keys())
-    return get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
-                                             label_vocab, lemma2synsets, mfs_file, **kwargs)
+        lemma2synsets[key] = [label_mapper.get_idx(l) for l in synsets]
+    dataset = get_dataset(model_name, paths, lemma2synsets, mfs_file, label_mapper, label_vocab)
+    return dataset
 
 
-def get_bnoffsets_dataset(indexers: Dict[str, Any], sliding_window=32, max_sentence_token=64,
-                          gold_id_separator=" ", langs=("en"), mfs_file=None, **kwargs):
+def get_bnoffsets_dataset(model_name, paths, label_mapper, langs=("en"), mfs_file=None, **kwargs) -> Tuple[
+    AllennlpDataset, Lemma2Synsets, Dict]:
     lemma2synsets = from_bn_mapping(langs, **kwargs)
     label_vocab = bnoffset_vocabulary()
     for key, synsets in lemma2synsets.items():
         lemma2synsets[key] = [label_vocab.get_idx(l) for l in synsets]
-    # key_mapper = AllenWSDDatasetReader.get_label_mapper("babelnet", label_vocab.stoi.keys())
-    return get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
-                                             label_vocab, lemma2synsets, mfs_file, **kwargs)
+    dataset = get_dataset(model_name, paths, lemma2synsets, mfs_file, label_mapper, label_vocab)
+    return dataset
 
 
-def get_sensekey_dataset(indexers: Dict[str, Any], sliding_window=32, max_sentence_token=64, gold_id_separator=" ",
-                         langs=None, mfs_file=None, **kwargs):
+def get_sensekey_dataset(model_name, paths, label_mapper, langs=None, mfs_file=None) \
+        -> Tuple[AllennlpDataset, Lemma2Synsets, Dict]:
     if langs is not None:
         logger.warning(
             "[get_sensekey_dataset]: the argument langs: {} is ignored by this method.".format(",".join(langs)))
-    lemma2synsets = sensekey_from_wn_sense_index()
+
     label_vocab = wn_sensekey_vocabulary()
+    lemma2synsets = sensekey_from_wn_sense_index()
     for key, synsets in lemma2synsets.items():
-        lemma2synsets[key] = [label_vocab.get_idx(l) for l in synsets]
-    return get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
-                                             label_vocab, lemma2synsets, mfs_file, **kwargs)
+        lemma2synsets[key] = [label_mapper.get_idx(l) for l in synsets]
+    return get_dataset(model_name, paths, lemma2synsets, mfs_file, label_mapper, label_vocab)
 
 
 class Config(dict):

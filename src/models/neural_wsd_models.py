@@ -6,9 +6,9 @@ from allennlp.modules import TextFieldEmbedder
 from allennlp.modules.text_field_embedders import BasicTextFieldEmbedder
 from allennlp.modules.token_embedders import PretrainedTransformerEmbedder
 from allennlp.training.metrics import Metric
-from allennlp_mods.callbacks import OutputWriter
 from data_io.data_utils import Lemma2Synsets
 from data_io.datasets import LabelVocabulary
+from to_be_updated.deprecated_allennlp_mods.callbacks import OutputWriter
 from torch import nn
 
 from src.data.datasets import Vocabulary
@@ -262,58 +262,27 @@ class AllenWSDModel(Model):
 
     @staticmethod
     def get_transformer_based_wsd_model(model_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
-                                        pad_token_id=0,
                                         mfs_dictionary=None,
                                         vocab=None,
                                         return_full_output=False,
-                                        eval=False, finetune_embedder=False, cache_vectors=False,
+                                        finetune_embedder=False,
+                                        cache_vectors=False,
                                         model_path=None):
         vocab = Vocabulary() if vocab is None else vocab
         if model_name.lower() == "nhs":
             model_name = "bert-base-multilingual-cased"
-        text_embedder = PretrainedTransformerEmbedder(pretrained_model=model_name,
-                                                      top_layer_only=True,  # conserve memory
-                                                      requires_grad=not eval and finetune_embedder,
-                                                      pad_token_id=pad_token_id)
+        text_embedder = PretrainedTransformerEmbedder(model_name)
         if model_path is not None:
             state_dict = torch.load(model_path)
-            updated_state_dict = {k.replace("bert.", "model."):v for k, v in state_dict.items()}
+            updated_state_dict = {k.replace("bert.", "model."): v for k, v in state_dict.items()}
             text_embedder.load_state_dict(updated_state_dict, strict=False)
 
-        # for param in text_embedder.parameters():
-        #     param.requires_grad = finetune_embedder and not eval
-        # if finetune_embedder:
-        #     text_embedder.train()
-        word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder},
-                                                                    # we'll be ignoring masks so we'll need to set this to True
-                                                                    allow_unmatched_keys=True)
+        word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder})
         str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
         word_embeddings.to(str_device)
         model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
-                              return_full_output=return_full_output, cache_instances=cache_vectors, pad_id=pad_token_id,
+                              return_full_output=return_full_output, cache_instances=cache_vectors,
+                              pad_id=word_embeddings.tokenizer.pad_token_id,
                               finetune_embedder=finetune_embedder)
         model.to(str_device)
         return model
-
-    # @staticmethod
-    # def get_bert_based_wsd_model(bert_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
-    #                              mfs_dictionary=None,
-    #                              vocab=None,
-    #                              return_full_output=False,
-    #                              eval=False, finetune_embedder=False, cache_vectors=False):
-    #
-    #     vocab = Vocabulary() if vocab is None else vocab
-    #     bert_embedder = PretrainedBertEmbedder(
-    #         pretrained_model=bert_name,
-    #         top_layer_only=True,  # conserve memory
-    #         requires_grad=not eval and finetune_embedder
-    #     )
-    #     word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": bert_embedder},
-    #                                                                 # we'll be ignoring masks so we'll need to set this to True
-    #                                                                 allow_unmatched_keys=True)
-    #     str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
-    #     word_embeddings.to(str_device)
-    #     model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
-    #                           return_full_output=return_full_output, cache_instances=cache_vectors)
-    #     model.to(str_device)
-    #     return model

@@ -1,30 +1,10 @@
-from allennlp.data.token_indexers import PretrainedBertIndexer
-from fairseq.models.bart import BARTModel
-
-from src.models.core import PretrainedXLMIndexer, PretrainedRoBERTaIndexer
+from allennlp.data.token_indexers import PretrainedTransformerIndexer
 
 
 def get_token_indexer(model_name):
     if model_name.lower() == "nhs":
         model_name = "bert-base-multilingual-cased"
-    if model_name.startswith("bert-"):
-        return PretrainedBertIndexer(
-            pretrained_model=model_name,
-            do_lowercase=False,
-            truncate_long_sequences=False
-        ), 0
-    if model_name.startswith("xlm-"):
-        indexer = PretrainedXLMIndexer(
-            pretrained_model=model_name,
-            do_lowercase=False,
-            truncate_long_sequences=False
-        )
-        return indexer, indexer.padding()
-    if model_name.startswith("roberta-"):
-        indexer = PretrainedRoBERTaIndexer(
-            pretrained_model=model_name,
-            do_lowercase=False,
-            truncate_long_sequences=False
-        )
-        return indexer, indexer.padding()
-    raise RuntimeError("Unknown model name: {}, cannot instanciate any indexer".format(model_name))
+    indexer = PretrainedTransformerIndexer(
+        model_name=model_name,
+    )
+    return indexer, indexer._tokenizer.pad_token_id

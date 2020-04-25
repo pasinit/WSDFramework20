@@ -7,12 +7,14 @@ import numpy as np
 import torch
 import wandb
 import yaml
-from allennlp.data import Vocabulary
-from allennlp.data.iterators import BucketIterator
+# from allennlp.data.iterators import BucketIterator
+from allennlp.data import Vocabulary, DataLoader, Batch
+from allennlp.data.samplers import BucketBatchSampler
+from allennlp.training import GradientDescentTrainer
 from allennlp.training.checkpointer import Checkpointer
-from allennlp_mods.callback_trainer import MyCallbackTrainer
-from allennlp_mods.callbacks import ValidateAndWrite, WanDBTrainingCallback
-from allennlp_mods.checkpointer import MyCheckpoint
+# from allennlp_mods.callback_trainer import MyCallbackTrainer
+# from allennlp_mods.callbacks import ValidateAndWrite, WanDBTrainingCallback
+# from allennlp_mods.checkpointer import MyCheckpoint
 from torch import optim
 
 from src.data.dataset_utils import get_dataset_with_labels_from_data, get_wnoffsets_dataset, get_sensekey_dataset, \
@@ -20,7 +22,6 @@ from src.data.dataset_utils import get_dataset_with_labels_from_data, get_wnoffs
 from src.evaluation.evaluate_model import evaluate_datasets
 from src.misc.wsdlogging import get_info_logger
 from src.models.neural_wsd_models import AllenWSDModel, WSDOutputWriter
-from src.utils.utils import get_token_indexer
 
 torch.random.manual_seed(42)
 np.random.seed(42)
@@ -78,9 +79,9 @@ def main(args):
     outpath = os.path.join(outpath, model_name)
     build_outpath_subdirs(outpath)
 
-    token_indexer, padding = get_token_indexer(model_name)
-
     if label_from_training:
+        logger.warn("using labels from training is highly discouraged as the method to generate the dataset is not "
+                    "longer maintained.")
         dataset_builder = get_dataset_with_labels_from_data
     elif sense_inventory == "wnoffsets":
         dataset_builder = get_wnoffsets_dataset
@@ -92,74 +93,84 @@ def main(args):
         raise RuntimeError(
             "%s sense_inventory has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnoffsets}" % (
                 sense_inventory))
+    all_labels = list()
+    for f in training_paths:
+        with open(f.replace(".data.xml", ".gold.key.txt")) as reader:
+            all_labels.extend([l.split(" ")[1] for l in reader])
+    label_mapper = get_label_mapper(target_inventory=sense_inventory, labels=all_labels)
 
-    reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
-                                                                         sliding_window=sliding_window,
-                                                                         max_sentence_token=max_sentence_token,
-                                                                         gold_id_separator=gold_id_separator,
-                                                                         langs=langs,
-                                                                         training_data_xmls=training_paths,
-                                                                         mfs_file=mfs_file,
-                                                                         sense_inventory=sense_inventory,
-                                                                         lazy=data_config.get("lazy", False))
+    training_ds, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder(
+        model_name, training_paths, label_mapper, langs, mfs_file)
+    dev_ds = None
+    if dev_name is not None:
+        dev_path = test_paths[test_names.index(dev_name)]
+        dev_ds, *_ = dataset_builder(model_name, dev_path, label_mapper, langs, mfs_file)
+    test_dss = [dataset_builder(model_name, t, label_mapper, langs, mfs_file)[0] for t in test_paths]
+    training_ds.index_with(Vocabulary())
+    for td in test_dss:
+        td.index_with(Vocabulary())
+
     model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
                                                           label_vocab,
                                                           vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                          cache_vectors=cache_instances, pad_token_id=padding,
+                                                          cache_vectors=cache_instances,
                                                           finetune_embedder=finetune_embedder,
                                                           model_path=model_config.get("model_path", None))
-    logger.info("reading training data...")
-    train_ds = reader.read(training_paths, label_mapper_getter=get_label_mapper)
-
     #####################################################
     # NEDED so to not split sentences in the test data. #
     reader.max_sentence_len = 200
     reader.sliding_window_size = 200
     #####################################################
-    logger.info("loading test data...")
-    tests_dss = [reader.read(test_path, label_mapper_getter=get_label_mapper) for test_path in test_paths]
+    # logger.info("loading test data...")
+    # tests_dss = [reader.read(test_path, label_mapper_getter=get_label_mapper) for test_path in test_paths]
     # iterator = BasicIterator(maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
     #                          cache_instances=True
     #                          )
-    iterator = BucketIterator(
-        biggest_batch_first=True,
-        sorting_keys=[("tokens", "num_tokens")],
-        maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
-        cache_instances=True,
-        # instances_per_epoch=10
-    )
-    valid_iterator = BucketIterator(
-        maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
-        biggest_batch_first=True,
-        sorting_keys=[("tokens", "num_tokens")],
-        cache_instances=True
-        # instances_per_epoch=10
-
-    )
-    iterator.index_with(Vocabulary())
+    # iterator = BucketIterator(
+    #     biggest_batch_first=True,
+    #     sorting_keys=[("tokens", "num_tokens")],
+    #     maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
+    #     cache_instances=True,
+    #     # instances_per_epoch=10
+    # )
+    # valid_iterator = BucketIterator(
+    #     maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
+    #     biggest_batch_first=True,
+    #     sorting_keys=[("tokens", "num_tokens")],
+    #     cache_instances=True
+    #     # instances_per_epoch=10
+    #
+    # )
+    training_iterator = DataLoader(training_ds, batch_sampler=BucketBatchSampler(training_ds, 32, ["tokens"]),
+                                   collate_fn=lambda x: Batch(x))
+    test_iterators = [DataLoader(td, batch_sampler=BucketBatchSampler(td, 32, ["tokens"]),
+                                 collate_fn=lambda x: Batch(x)) for td in test_dss]
+    dev_iterator = None
+    if dev_ds is not None:
+        dev_iterator = DataLoader(dev_ds, batch_sampler=BucketBatchSampler(dev_ds, 32, ["tokens"]),
+                                  collate_fn=lambda x: Batch(x))
     writers = [WSDOutputWriter(os.path.join(outpath, "predictions", name + ".predictions.txt"), label_vocab.itos) for
                name
                in test_names]
-    callbacks = [ValidateAndWrite(data, valid_iterator, output_writer=writer, name=name, wandb=True,
+    callbacks = [ValidateAndWrite(td, output_writer=writer, name=name, wandb=True,
                                   is_dev=name == dev_name if dev_name is not None else False) for
-                 name, data, writer in zip(
-            test_names, tests_dss, writers)]
+                 name, td, writer in zip(test_names, test_dss, writers)]
     callbacks.append(WanDBTrainingCallback())
     callbacks.append(
         MyCheckpoint(Checkpointer(os.path.join(outpath, "checkpoints"), num_serialized_models_to_keep=100),
                      autoload_last_checkpoint=args.reload_checkpoint))
 
-    trainer = MyCallbackTrainer(model=model,
-                                optimizer=optim.Adam(model.parameters(), lr=learning_rate),
-                                iterator=iterator,
-                                cuda_device=device_int,
-                                num_epochs=num_epochs,
-                                training_data=train_ds,
-                                callbacks=callbacks,
-                                shuffle=True,
-                                track_dev_metrics=True,
-                                metric_name="f1_mfs" if mfs_file else "f1"
-                                )
+    trainer = GradientDescentTrainer(model=model,
+                                     optimizer=optim.Adam(model.parameters(), lr=learning_rate),
+                                     data_loader=training_iterator,
+                                     cuda_device=device_int,
+                                     num_epochs=num_epochs,
+                                     validation_data_loader=dev_iterator,
+                                     validation_metric="f1_mfs" if mfs_file else "f1",
+                                     epoch_callbacks=callbacks,
+                                     serialization_dir=os.path.join(outpath, "checkpoints"),
+                                     checkpointer=Checkpointer(os.path.join(outpath, "checkpoints"), num_serialized_models_to_keep=100),
+                                     )
     trainer.train()
     with open(os.path.join(outpath, "last_model.th"), "wb") as writer:
         torch.save(model.state_dict(), writer)
