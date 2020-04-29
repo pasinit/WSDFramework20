@@ -9,13 +9,12 @@ data:
   sense_inventory: bnoffsets
   label_from_training: False
   gold_id_separator: " "
-  outpath: data/models/fr_o+g+s
+  outpath: data2/models/fr_o+g+s
   mfs_file: resources/mfs/mfs_bn.fr.bnids.txt
   test_names:
     - wiki_dev_fr
     - wiki_test_fr
     - semeval2013_fr_wnfilter
-    - semeval2015_fr_wnfilter
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000

@@ -3,11 +3,11 @@ data:
     - de
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
-      - data2/training_data/en_training_data/onesec_original_data/onesec_testset_instances/OneSeC_DE.data.xml
+      - data/training_data/en_training_data/onesec_original_data/onesec_testset_instances/OneSeC_DE.data.xml
   sense_inventory: bnoffsets 
   label_from_training: False
   gold_id_separator: " "
-  outpath: data3/models/de_onesec_original
+  outpath: data2/models/de_onesec_original
   mfs_file: resources/mfs/mfs_bn.de.bnids.txt
   test_names:
     - wiki_dev_de
