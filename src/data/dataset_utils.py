@@ -33,12 +33,14 @@ def from_bn_mapping(langs=("en"), sense_inventory=None, **kwargs):
     #     reliable = "bnoffsets_reliable" == sense_inventory
     lemmapos2gold = dict()
     for lang in langs:
-        with open("resources/lexeme_to_synsets/lexeme2synsets.reliable_sources.{}.txt".format(lang)) as lines:
+        #with open("resources/lexeme_to_synsets/lexeme2synsets.reliable_sources.{}.txt".format(lang)) as lines:
+        with open(f"resources/inventory/inventory.{lang}.withgold.txt") as lines:
             for line in lines:
                 fields = line.strip().lower().split("\t")
                 if len(fields) < 2:
                     continue
                 lemmapos = fields[0]
+                lemmapos = lemmapos.split("#")[0] + "#" + get_simplified_pos(lemmapos.split("#")[1])
                 synsets = fields[1:]
                 old_synsets = lemmapos2gold.get(lemmapos, set())
                 old_synsets.update(synsets)
