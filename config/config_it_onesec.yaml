@@ -17,7 +17,6 @@ data:
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
-  dev_name: wiki_dev_it
 
 
 model:

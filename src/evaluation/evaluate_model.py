@@ -41,7 +41,8 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
         bar = batches
         if verbose:
             bar = tqdm(batches)
-        debugwriter = open("/tmp/debug.txt", "w")
+        if debug:
+            debugwriter = open(output_path.replace(".txt", ".debug.txt"), "w")
         for batch in bar:
             outputs = predictor.predict_batch_instance(batch.instances)
             ids = [prediction["ids"] for prediction in outputs]
@@ -72,10 +73,12 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                         is_mfs = label_vocab.itos[p] == "<unk>"
                         pred = mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
                         mfs_info_writer.write("{} {} {}\n".format(id, pred, "MFS" if is_mfs else ""))
-                        debugwriter.write(
-                            "{}\t{}\t{}\t{}\t{}\n".format(id, lp, pred, label, ", ".join(possible_labels)))
+                        if pred not in label:
+                            debugwriter.write(
+                                "{}\t{}\t{}\t{}\t{}\n".format(id, lp, pred, label, ", ".join(possible_labels)))
         metric = f1_computer.get_metric(True)
-        debugwriter.close()
+        if debug:
+            debugwriter.close()
         return metric
 
 
