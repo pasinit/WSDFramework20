@@ -1,7 +1,7 @@
 data:
   langs:
     - fr
-  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+  test_data_root: /home/tommaso/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
     - data2/training_data/multilingual_training_data/onesec/fr/onesec.fr.test_set_lemmas.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
   sense_inventory: bnoffsets 

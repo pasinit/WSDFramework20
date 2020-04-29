@@ -3,7 +3,7 @@ from collections import OrderedDict
 from typing import Dict, List
 from allennlp.data import Vocabulary
 from allennlp.data.iterators import BasicIterator, BucketIterator
-# from allennlp.data.token_indexers import PretrainedBertIndexer
+from allennlp.data.token_indexers import PretrainedBertIndexer
 from allennlp.predictors import SentenceTaggerPredictor
 from argparse import ArgumentParser
 

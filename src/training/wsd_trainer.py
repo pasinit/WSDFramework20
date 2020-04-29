@@ -3,27 +3,23 @@ import os
 import socket
 from argparse import ArgumentParser
 
+import numpy as np
 import torch
 import wandb
 import yaml
-from allennlp.data.iterators import BucketIterator, BasicIterator
-from allennlp.data.token_indexers import PretrainedBertIndexer
-from allennlp.training.callbacks import Checkpoint
+from allennlp.data import Vocabulary
+from allennlp.data.iterators import BucketIterator
 from allennlp.training.checkpointer import Checkpointer
 from allennlp_mods.callback_trainer import MyCallbackTrainer
 from allennlp_mods.callbacks import ValidateAndWrite, WanDBTrainingCallback
 from allennlp_mods.checkpointer import MyCheckpoint
 from torch import optim
 
-from src.data.dataset_utils import get_pos_from_key
-
-from src.data.datasets import Vocabulary, AllenWSDDatasetReader
+from src.data.dataset_utils import get_dataset_with_labels_from_data, get_wnoffsets_dataset, get_sensekey_dataset, \
+    get_bnoffsets_dataset, get_label_mapper
 from src.evaluation.evaluate_model import evaluate_datasets
 from src.misc.wsdlogging import get_info_logger
-from src.models.core import PretrainedXLMIndexer, PretrainedRoBERTaIndexer
 from src.models.neural_wsd_models import AllenWSDModel, WSDOutputWriter
-import numpy as np
-
 from src.utils.utils import get_token_indexer
 
 torch.random.manual_seed(42)
@@ -68,6 +64,7 @@ def main(args):
     sliding_window = data_config["sliding_window"]
     device = model_config["device"]
     model_name = model_config["model_name"]
+    finetune_embedder = model_config.get("finetune", False)
     learning_rate = float(model_config["learning_rate"])
     cache_instances = training_config["cache_instances"]
     num_epochs = training_config["num_epochs"]
@@ -84,19 +81,18 @@ def main(args):
     token_indexer, padding = get_token_indexer(model_name)
 
     if label_from_training:
-        dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
+        dataset_builder = get_dataset_with_labels_from_data
     elif sense_inventory == "wnoffsets":
-        dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
+        dataset_builder = get_wnoffsets_dataset
     elif sense_inventory == "sensekeys":
-        dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
+        dataset_builder = get_sensekey_dataset
     elif sense_inventory == "bnoffsets":
-        dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
+        dataset_builder = get_bnoffsets_dataset
     else:
         raise RuntimeError(
             "%s sense_inventory has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnoffsets}" % (
                 sense_inventory))
 
-    print("loading dataset")
     reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
                                                                          sliding_window=sliding_window,
                                                                          max_sentence_token=max_sentence_token,
@@ -109,9 +105,11 @@ def main(args):
     model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
                                                           label_vocab,
                                                           vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                          cache_vectors=cache_instances, pad_token_id=padding)
-    logger.info("loading training data...")
-    train_ds = reader.read(training_paths)
+                                                          cache_vectors=cache_instances, pad_token_id=padding,
+                                                          finetune_embedder=finetune_embedder,
+                                                          model_path=model_config.get("model_path", None))
+    logger.info("reading training data...")
+    train_ds = reader.read(training_paths, label_mapper_getter=get_label_mapper)
 
     #####################################################
     # NEDED so to not split sentences in the test data. #
@@ -119,7 +117,7 @@ def main(args):
     reader.sliding_window_size = 200
     #####################################################
     logger.info("loading test data...")
-    tests_dss = [reader.read(test_path) for test_path in test_paths]
+    tests_dss = [reader.read(test_path, label_mapper_getter=get_label_mapper) for test_path in test_paths]
     # iterator = BasicIterator(maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
     #                          cache_instances=True
     #                          )
@@ -167,10 +165,12 @@ def main(args):
         torch.save(model.state_dict(), writer)
     with open(os.path.join(outpath, "label_vocab.pkl"), "wb") as writer:
         pkl.dump(label_vocab, writer)
-
+    if not os.path.exists(os.path.join(outpath, "evaluation")):
+        os.mkdir(os.path.join(outpath, "evaluation"))
     evaluate_datasets(test_paths, reader, os.path.join(outpath, "checkpoints", "best.th"), model_name, label_vocab,
                       lemma2synsets, device_int,
-                      mfs_dictionary, mfs_dictionary is not None, args.output_path, padding, verbose=True,
+                      mfs_dictionary, mfs_dictionary is not None, os.path.join(outpath, "evaluation"), padding,
+                      verbose=True,
                       debug=False)
 
 
