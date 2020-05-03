@@ -5,12 +5,12 @@ data:
    - fr
    - de
    - it
-  test_data_root: /home/tommaso/Documents/data/SemEval/dataset_onesec #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+  test_data_root: /home/tommaso/onesec_new_multilingual/evaluation/ #/home/tommaso/Documents/data/SemEval/dataset_onesec #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
-    - data2/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_manual.data.xml
+    - data/training_data/en_training_data/semcor+princeton_glosses/semcor+princeton_glosses_all.data.xml
 
   gold_id_separator: " "
-  outpath: data3/models/en_semcor_gloss_manual_zero_shot/
+  outpath: data2/models/en_semcor_gloss_manual_zero_shot/
   label_from_training: False 
   sense_inventory: bnoffsets 
   #mfs_file: resources/mfs/mfs.zeroshot.bnid.txt
@@ -24,12 +24,12 @@ data:
       #- semeval2015
       #- ALL
       #- ALL_no_semeval2007
-    - semeval2013_it
-    - semeval2015_it
-    - semeval2013_es
-    - semeval2015_es
-    - semeval2013_fr
-    - semeval2013_de
+      #- semeval2013-it
+      #- semeval2015-it
+      #- semeval2013-es
+    - semeval2015-es
+      #- semeval2013-fr
+      #- semeval2013-de
       #dev_name: semeval2007
   max_sentence_token: 30
   sliding_window: 15

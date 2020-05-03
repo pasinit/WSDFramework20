@@ -3,7 +3,7 @@ data:
     - it
   test_data_root: /home/tommaso/onesec_new_multilingual/evaluation/
   train_data_root:
-    - /home/tommaso/onsec_new_multilingual/data/onesec.it.data.xml
+    - /home/tommaso/onesec_new_multilingual/data/onesec.it.data.xml
   sense_inventory: bnoffsets
   label_from_training: False
   gold_id_separator: " "
@@ -20,7 +20,7 @@ data:
 
 
 model:
-  device: cuda 
+  device: cpu 
   model_name: bert-base-multilingual-cased
   learning_rate: 1e-4
 

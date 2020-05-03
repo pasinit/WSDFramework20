@@ -1,28 +1,27 @@
 data:
   langs:
-    - es
-  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+    - es 
+  test_data_root: /home/tommaso/onesec_new_multilingual/evaluation/
   train_data_root:
-    - data2/training_data/multilingual_training_data/onesec/es/onesec.es.test_set_lemmas.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
+    - /home/tommaso/onesec_new_multilingual/data/onesec.es.data.xml
   sense_inventory: bnoffsets
   label_from_training: False
   gold_id_separator: " "
-  outpath: data3/models/es_onesec
-  mfs_file: resources/mfs/mfs_bn.es.bnids.txt
-  test_names:
-    - wiki_dev_es
-    - wiki_test_es
-    - semeval2013_es_wnfilter
-    - semeval2015_es_wnfilter
+  outpath: data/models/es_onesec_new_evaluation
 
+  mfs_file:
+  test_names:
+    - semeval2013-es
+    - semeval2015-es
+    - semeval2013-es-nasari
+    - semeval2015-es-nasari
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000
-  dev_name: wiki_dev_es
 
 
 model:
-  device: cuda 
+  device: cpu 
   model_name: bert-base-multilingual-cased
   learning_rate: 1e-4
 
