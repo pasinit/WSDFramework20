@@ -1,17 +1,19 @@
 data:
   langs:
     - it
-  test_data_root: /home/tommaso/dev/intellijWorkspace/babelnet_mapping_4.0/data/out/multilingual_wsd_v0.1.4 #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
+  test_data_root: /home/tommaso/onesec_new_multilingual/evaluation/
   train_data_root:
-    - /home/tommaso/Documents/data/onesec_new/onesec.it.data.xml
+    - /home/tommaso/onsec_new_multilingual/data/onesec.it.data.xml
   sense_inventory: bnoffsets
   label_from_training: False
   gold_id_separator: " "
-  outpath: data3/models/it_onesec_new_framework
-  mfs_file: /home/tommaso/dev/intellijWorkspace/babelnet_mapping_4.0/data/out/multilingual_wsd_v0.1.5/inventory.it.sorted.withgold.txt
+  outpath: data/models/it_onesec_new_evaluation
+  mfs_file:
   test_names:
     - semeval2013-it
-      #- semeval2015-it
+    - semeval2015-it
+    - semeval2013-it-nasari
+    - semeval2015-it-nasari
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000

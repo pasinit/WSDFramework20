@@ -13,7 +13,6 @@ data:
     - wiki_dev_de
     - wiki_test_de
     - semeval2013_de_wnfilter
-    - semeval2015_de_wnfilter
   max_sentence_token: 30
   sliding_window: 15
   max_segments_in_batch: 2000

@@ -1,5 +1,4 @@
 from allennlp.data.token_indexers import PretrainedBertIndexer
-from fairseq.models.bart import BARTModel
 
 from src.models.core import PretrainedXLMIndexer, PretrainedRoBERTaIndexer
 
