@@ -170,10 +170,10 @@ class AllenWSDModel(Model):
                 embeddings = [self.cache[instance_id] for instance_id in batch_instance_id]
                 all_embeddings.append(torch.stack(embeddings, 0).to(self.projection.weight.device))
             return torch.cat(all_embeddings, 0)
-        tokens = {"tokens": tokens["tokens"][indices_to_compute],
-                  "tokens-offsets": tokens["tokens-offsets"][indices_to_compute],
-                  "tokens-type-ids": tokens["tokens-type-ids"][indices_to_compute],
-                  "mask": tokens["mask"][indices_to_compute]}
+        # tokens = {"tokens": tokens["tokens"][indices_to_compute],
+        #           "tokens-offsets": tokens["tokens-offsets"][indices_to_compute],
+        #           "tokens-type-ids": tokens["tokens-type-ids"][indices_to_compute],
+        #           "mask": tokens["mask"][indices_to_compute]}
         mask_to_compute = mask[indices_to_compute]
         embeddings = self.word_embeddings(tokens, **{"token_type_ids": tokens["tokens-type-ids"]})
         embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
@@ -218,7 +218,7 @@ class AllenWSDModel(Model):
         possible_classes_mask = torch.zeros_like(labeled_logits)  # .to(class_logits.device)
         for i, ith_lp in enumerate(possible_labels):
             possible_classes_mask[i][possible_labels[i]] = 1
-            possible_classes_mask[:, 0] = 0
+        possible_classes_mask[:, 0] = 0
         labeled_logits = labeled_logits * possible_classes_mask
         predictions = None
 

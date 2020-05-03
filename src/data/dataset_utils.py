@@ -407,9 +407,9 @@ def get_simplified_pos(long_pos):
     long_pos = long_pos.lower()
     if long_pos.startswith("n") or long_pos.startswith("propn"):
         return "n"
-    elif long_pos.startswith("adj") or long_pos.startswith("j"):
+    elif long_pos.startswith("adj") or long_pos.startswith("j") or long_pos == "a":
         return "a"
-    elif long_pos.startswith("adv") or long_pos.startswith("r"):
+    elif long_pos.startswith("adv") or long_pos.startswith("r") or long_pos == "r":
         return "r"
     elif long_pos.startswith("v"):
         return "v"
