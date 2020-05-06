@@ -1,24 +1,21 @@
+import os
 import subprocess
+from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import Dict, List
+
+import torch
+import yaml
 from allennlp.data import Vocabulary
-from allennlp.data.iterators import BasicIterator, BucketIterator
 # from allennlp.data.token_indexers import PretrainedBertIndexer
 from allennlp.predictors import SentenceTaggerPredictor
-from argparse import ArgumentParser
-
-from data_io.datasets import AllenWSDDatasetReader
+from data_io.datasets import WSDDataset
 from pandas import DataFrame
 from tqdm import tqdm
 
 from src.data.dataset_utils import get_dataset_with_labels_from_data, get_wnoffsets_dataset, get_sensekey_dataset, \
     get_bnoffsets_dataset, get_label_mapper
 from src.models.neural_wsd_models import AllenWSDModel, WSDF1
-import torch
-
-import os
-import yaml
-
 # from src.training.wsd_trainer import get_token_indexer
 from src.utils.utils import get_token_indexer
 
@@ -83,7 +80,7 @@ import pandas
 
 
 def evaluate_datasets(dataset_paths: List[str],
-                      dataset_reader: AllenWSDDatasetReader, checkpoint_path: str, model_name: str, label_vocab: Dict,
+                      dataset_reader: WSDDataset, checkpoint_path: str, model_name: str, label_vocab: Dict,
                       lemma2synsets: Dict,
                       device_int: int, mfs_dictionary: Dict,
                       use_mfs: bool,

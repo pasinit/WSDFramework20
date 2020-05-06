@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 
 import torch
-from nlp_models.bert_wrappers import BertWrapper
-from torch.nn import Module
 
 class WSDModel(ABC):
     def __init__(self, name, tokeniser=None):
