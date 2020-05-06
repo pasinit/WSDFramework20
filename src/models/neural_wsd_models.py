@@ -1,6 +1,7 @@
 from typing import Dict, Any, Callable, List
 
 import torch
+from allennlp.data import Vocabulary
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder
 from allennlp.modules.text_field_embedders import BasicTextFieldEmbedder
@@ -11,16 +12,13 @@ from data_io.data_utils import Lemma2Synsets
 from data_io.datasets import LabelVocabulary
 from torch import nn
 
-from src.data.datasets import Vocabulary
-
-
 class WSDOutputWriter(OutputWriter):
     def __init__(self, output_file, labeldict):
         super().__init__(output_file, labeldict)
 
     def write(self, outs):
         predictions = outs["predictions"].flatten().tolist()
-        golds = [x for y in outs["str_labels"] for x in y]
+        golds = [x for y in outs["str_labels"] for x in y if x != ""]
         ids = [x for y in outs["ids"] for x in y]
         assert len(predictions) == len(golds)
         for i in range(len(predictions)):  # p, l in zip(predictions, labels):
@@ -192,7 +190,7 @@ class AllenWSDModel(Model):
                 return self.get_embeddings_from_cache(tokens, mask, instance_ids), retrieved_embedding_mask
         else:
             embeddings = self.word_embeddings(tokens)
-        embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
+        # embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens"]["offsets"])
         masked_embeddings = embeddings[retrieved_embedding_mask]
         embeddings = masked_embeddings
 
@@ -206,7 +204,7 @@ class AllenWSDModel(Model):
         embeddings, retrieved_embedding_mask = self.get_embeddings(tokens, mask, cache_instance_ids)
         labeled_logits = self.projection(embeddings) # mask.unsqueeze(-1)
         target_labels = label_ids[retrieved_embedding_mask]
-        flatten_labels = [x for y in labels for x in y]
+        flatten_labels = [x for y in labels for x in y if x != ""]
         possible_labels = [x for y in possible_labels for x in y]
         possible_classes_mask = torch.zeros_like(labeled_logits) #.to(class_logits.device)
         for i, ith_lp in enumerate(possible_labels):

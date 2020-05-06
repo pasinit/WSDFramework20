@@ -95,11 +95,13 @@ def main(args):
             all_labels.extend([l.split(" ")[1] for l in reader])
     label_mapper = get_label_mapper(target_inventory=sense_inventory, labels=all_labels)
 
-    training_ds, lemma2synsets, mfs_dictionary, label_vocab = dataset_builder(model_name, training_paths, label_mapper, langs, mfs_file)
+    training_ds, lemma2synsets, mfs_dictionary, label_vocab = dataset_builder(model_name, training_paths, label_mapper,
+                                                                              langs, mfs_file)
     dev_ds = None
     if dev_name is not None:
         dev_path = test_paths[test_names.index(dev_name)]
         dev_ds, *_ = dataset_builder(model_name, dev_path, label_mapper, langs, mfs_file)
+        dev_ds.index_with(Vocabulary())
     test_dss = [dataset_builder(model_name, t, label_mapper, langs, mfs_file)[0] for t in test_paths]
     training_ds.index_with(Vocabulary())
     for td in test_dss:
@@ -137,7 +139,7 @@ def main(args):
     #
     # )
     training_iterator = DataLoader(training_ds, batch_sampler=BucketBatchSampler(training_ds, 32, ["tokens"]),
-                                   collate_fn=allennlp_collate)
+                                   collate_fn=allennlp_collate, batches_per_epoch=1)
     # test_iterators = [DataLoader(td, batch_sampler=BucketBatchSampler(td, 32, ["tokens"]),
     #                              collate_fn=lambda x: Batch(x)) for td in test_dss]
     dev_iterator = None
@@ -146,7 +148,11 @@ def main(args):
                                   collate_fn=allennlp_collate)
     writers = [WSDOutputWriter(os.path.join(outpath, "predictions", name + ".predictions.txt"), label_vocab.itos)
                for name in test_names]
-    callbacks = [TestAndWrite(td, output_writer=writer, name=name, wandb=True,
+    callbacks = [TestAndWrite(test_iterator=DataLoader(td, batch_sampler=BucketBatchSampler(td, 32, ["tokens"]),
+                                                       collate_fn=allennlp_collate),
+                              output_writer=writer,
+                              name=name,
+                              wandb=True,
                               is_dev=name == dev_name if dev_name is not None else False)
                  for name, td, writer in zip(test_names, test_dss, writers)]
 
