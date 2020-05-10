@@ -24,12 +24,14 @@ data:
       #- semeval2015
       #- ALL
       #- ALL_no_semeval2007
-    - semeval2013_it
-    - semeval2015_it
-    - semeval2013_es
-    - semeval2015_es
-    - semeval2013_fr
-    - semeval2013_de
+    - semeval2010-it
+    - semeval2010-zh
+    - semeval2013-it
+    - semeval2015-it
+    - semeval2013-es
+    - semeval2015-es
+    - semeval2013-fr
+    - semeval2013-de
       #dev_name: semeval2007
   max_sentence_token: 30
   sliding_window: 15

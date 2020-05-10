@@ -1,15 +1,11 @@
 data:
   langs:
     - en
-  #  lemma2synsetpath: /media/tommaso/My Book/factories/output/lemma2bnsynsets.wn_part.en.txt
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Evaluation_Datasets/
   train_data_root:
     - data2/training_data/en_training_data/semcor/semcor.data.xml #/home/tommaso/Documents/data/WSD_Evaluation_Framework_2.0/Training_Corpora/
   sense_inventory: wnoffsets 
-  label_from_training: False
-  gold_id_separator: " "
-  outpath: data/models/en_semcor_wnoffsets_full_new/
-  #mfs_file: resources/mfs/mfs_wn.en.wnoffset.txt
+  outpath: data/models/en_semcor_wnoffsets_xlmr_large_full_new/
   test_names:
       #- senseval2
       #- senseval3
@@ -22,13 +18,11 @@ data:
     - ALL_no_semeval2007
   dev_name: semeval2007
 
-  max_sentence_token: 30
-  sliding_window: 15
-  max_segments_in_batch: 2000
+  max_segments_in_batch: 1000
 
 model:
   device: cuda 
-  model_name: bert-large-cased
+  model_name: xlm-roberta-large
   learning_rate: 1e-4
 
 training:

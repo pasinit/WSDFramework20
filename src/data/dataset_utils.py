@@ -5,12 +5,12 @@ import torch
 from allennlp.data.dataset_readers.dataset_reader import AllennlpDataset
 from allennlp.data.token_indexers import PretrainedTransformerIndexer, PretrainedTransformerMismatchedIndexer
 from allennlp.data.tokenizers import PretrainedTransformerTokenizer
-from allennlp_training_callbacks.callbacks import OutputWriter
-from data_io.data_utils import Lemma2Synsets
-from data_io.datasets import LabelVocabulary, WSDDataset
 import logging
 
 from deprecated import deprecated
+from nlp_resources.allennlp_training_callbacks.callbacks import OutputWriter
+from nlp_resources.data_io.data_utils import Lemma2Synsets
+from nlp_resources.data_io.datasets import LabelVocabulary, WSDDataset
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -43,7 +43,9 @@ def from_bn_mapping(langs=("en"), sense_inventory=None, **kwargs):
                 fields = line.strip().lower().split("\t")
                 if len(fields) < 2:
                     continue
-                lemmapos = fields[0]
+                lemma,pos = fields[0].split("#")
+                pos = get_simplified_pos(pos)
+                lemmapos = lemma + "#" + pos
                 synsets = fields[1:]
                 old_synsets = lemmapos2gold.get(lemmapos, set())
                 old_synsets.update(synsets)
@@ -63,7 +65,6 @@ def sensekey_from_wn_sense_index():
             golds.add(key)
             lemmapos2gold[lexeme] = golds
     return Lemma2Synsets(data=lemmapos2gold)
-
 
 def load_bn_offset2bnid_map(path):
     offset2bnid = dict()
