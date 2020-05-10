@@ -1,4 +1,6 @@
+import os
 import _pickle as pkl
+import hashlib
 import os
 import socket
 from argparse import ArgumentParser
@@ -7,21 +9,17 @@ import numpy as np
 import torch
 import wandb
 import yaml
-import hashlib
-from allennlp.data import Vocabulary, DataLoader, allennlp_collate
-from allennlp.data.samplers import BucketBatchSampler
-from allennlp.training import GradientDescentTrainer, Checkpointer
-from nlp_resources.allen_data.iterators import AllenWSDDatasetBucketIterator, get_bucket_iterator
-from nlp_resources.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite
+from allennlp.data import Vocabulary
+from allennlp.training import GradientDescentTrainer
+from nlp_tools.allen_data.iterators import get_bucket_iterator
+from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite
 from torch.optim import Adam
 
-from src.data.dataset_utils import get_dataset_with_labels_from_data, get_wnoffsets_dataset, get_sensekey_dataset, \
+from src.data.dataset_utils import get_wnoffsets_dataset, get_sensekey_dataset, \
     get_bnoffsets_dataset, get_label_mapper
 from src.evaluation.evaluate_model import evaluate_datasets
 from src.misc.wsdlogging import get_info_logger
-from src.models.neural_wsd_models import AllenWSDModel, WSDOutputWriter, AllenFFWsdModel, AllenBatchNormWsdModel
-import _pickle as pkl
-
+from src.models.neural_wsd_models import WSDOutputWriter
 from src.utils.utils import get_model
 
 torch.random.manual_seed(42)
@@ -30,6 +28,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 logger = get_info_logger(__name__)
+
 
 def build_outpath_subdirs(path):
     if not os.path.exists(path):
@@ -70,11 +69,10 @@ def get_mapper(training_paths, sense_inventory):
     return label_mapper
 
 
-def get_cached_dataset_file_name(encoder_name, sense_inventory, training_paths):
+def get_cached_dataset_file_name(*args):
     m = hashlib.sha256()
-    m.update(bytes(encoder_name, 'utf8'))
-    m.update(bytes(sense_inventory, 'utf8'))
-    m.update(bytes("_".join(training_paths), 'utf8'))
+    for arg in args:
+        m.update(bytes(str(arg), 'utf8'))
     return m.hexdigest()
 
 
@@ -89,6 +87,7 @@ def main(args):
     train_data_root = data_config["train_data_root"]
     test_names = data_config["test_names"]
     langs = data_config["langs"]
+    force_reload = data_config["force_reload"]
     sense_inventory = data_config["sense_inventory"]
     max_segments_in_batch = data_config["max_segments_in_batch"]
     dev_name = data_config.get("dev_name", None)
@@ -113,11 +112,11 @@ def main(args):
 
     dataset_builder = get_dataset_builder(sense_inventory)
     label_mapper = get_mapper(training_paths, sense_inventory)
-
-    cached_dataset_file_name = get_cached_dataset_file_name(encoder_name, sense_inventory, training_paths)
+    cached_dataset_file_name = get_cached_dataset_file_name(encoder_name, sense_inventory, training_paths,
+                                                            max_segments_in_batch)
     label_vocab, lemma2synsets, mfs_dictionary, training_ds, training_iterator = get_training_data(
         cached_dataset_file_name, dataset_builder, encoder_name, label_mapper, langs, max_segments_in_batch, mfs_file,
-        training_paths)
+        training_paths, force_reload)
 
     test_dss = get_test_datasets(dataset_builder, encoder_name, label_mapper, langs, mfs_file, test_paths)
 
@@ -148,6 +147,7 @@ def main(args):
                                      grad_clipping=1.0,
                                      num_epochs=num_epochs,
                                      validation_data_loader=dev_iterator,
+                                     num_gradient_accumulation_steps=training_config.get("gradient_accumulation", 1),
                                      validation_metric="+f1",  # "+f1_mfs" if mfs_file else "+f1",
                                      # validation_metric="-loss",
                                      epoch_callbacks=callbacks,
@@ -182,6 +182,7 @@ def get_dev_dataset(dev_name, test_dss, test_names):
 
 
 def get_test_datasets(dataset_builder, encoder_name, label_mapper, langs, mfs_file, test_paths):
+    get_cached_dataset_file_name(*test_paths, encoder_name)
     test_dss = [dataset_builder(encoder_name, t, label_mapper, langs, mfs_file)[0] for t in test_paths]
     for td in test_dss:
         td.index_with(Vocabulary())
@@ -189,8 +190,8 @@ def get_test_datasets(dataset_builder, encoder_name, label_mapper, langs, mfs_fi
 
 
 def get_training_data(cached_dataset_file_name, dataset_builder, encoder_name, label_mapper, langs,
-                      max_segments_in_batch, mfs_file, training_paths):
-    if os.path.exists(os.path.join(".cache/", cached_dataset_file_name)):
+                      max_segments_in_batch, mfs_file, training_paths, force_reload):
+    if not force_reload is not None and os.path.exists(os.path.join(".cache/", cached_dataset_file_name)):
         logger.info("Loading training set from cache: {}".format(os.path.join(".cache/", cached_dataset_file_name)))
         with open(os.path.join(".cache/", cached_dataset_file_name), "rb") as reader:
             training_iterator, training_ds, lemma2synsets, mfs_dictionary, label_vocab = pkl.load(reader)

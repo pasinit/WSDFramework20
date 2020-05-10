@@ -1,16 +1,14 @@
+import logging
 from collections import Counter
-from typing import Dict, Any, Tuple, Union, Callable
+from typing import Dict, Tuple, Union
 
 import torch
 from allennlp.data.dataset_readers.dataset_reader import AllennlpDataset
-from allennlp.data.token_indexers import PretrainedTransformerIndexer, PretrainedTransformerMismatchedIndexer
-from allennlp.data.tokenizers import PretrainedTransformerTokenizer
-import logging
-
+from allennlp.data.token_indexers import PretrainedTransformerMismatchedIndexer
 from deprecated import deprecated
-from nlp_resources.allennlp_training_callbacks.callbacks import OutputWriter
-from nlp_resources.data_io.data_utils import Lemma2Synsets
-from nlp_resources.data_io.datasets import LabelVocabulary, WSDDataset
+from nlp_tools.allennlp_training_callbacks.callbacks import OutputWriter
+from nlp_tools.data_io.data_utils import Lemma2Synsets
+from nlp_tools.data_io.datasets import LabelVocabulary, WSDDataset
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 

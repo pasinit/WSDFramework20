@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from src.language_modelling_scorer.scorers import SentenceScorer
+from src.language_modelling_scorer_deprecated.scorers import SentenceScorer
 import pprint
 
 

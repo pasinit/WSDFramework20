@@ -3,15 +3,12 @@ from typing import Dict, List
 import torch
 from allennlp.common.util import pad_sequence_to_length
 from allennlp.data import Vocabulary, Token
-from allennlp.data.token_indexers import WordpieceIndexer
-from allennlp.data.token_indexers.wordpiece_indexer import _get_token_type_ids
 from allennlp.models import Model
-from nlp_utils.huggingface_utils import get_needed_start_end_sentence_tokens
 from overrides import overrides
 from transformers import AutoTokenizer
 
-from src.language_modelling_scorer.gpt2_mod import GPT2LMHeadModel
-from src.language_modelling_scorer.xlm_mod import XLMWithLMHeadModel
+from src.language_modelling_scorer_deprecated.gpt2_mod import GPT2LMHeadModel
+from src.language_modelling_scorer_deprecated.xlm_mod import XLMWithLMHeadModel
 
 
 class AutoHuggingfaceIndexer(WordpieceIndexer):

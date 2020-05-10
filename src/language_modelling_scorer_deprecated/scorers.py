@@ -5,8 +5,8 @@ from allennlp.data.iterators import BucketIterator
 from numpy import random
 from tqdm import tqdm
 
-from src.language_modelling_scorer.language_modelling import AutoHuggingfaceLM, AutoHuggingfaceIndexer
-from src.language_modelling_scorer.lm_datasets import LMDataset
+from src.language_modelling_scorer_deprecated.language_modelling import AutoHuggingfaceLM, AutoHuggingfaceIndexer
+from src.language_modelling_scorer_deprecated.lm_datasets import LMDataset
 import torch
 import allennlp.nn.util as nn_util
 import jsonlines

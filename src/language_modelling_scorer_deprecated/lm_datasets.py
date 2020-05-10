@@ -7,7 +7,7 @@ import numpy as np
 from allennlp.data.fields import TextField, IndexField, MetadataField, ArrayField
 from allennlp.data.iterators import BucketIterator
 
-from src.language_modelling_scorer.language_modelling import AutoHuggingfaceIndexer
+from src.language_modelling_scorer_deprecated.language_modelling import AutoHuggingfaceIndexer
 
 
 class LMDataset(DatasetReader):

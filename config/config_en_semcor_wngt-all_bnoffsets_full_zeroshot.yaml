@@ -32,7 +32,8 @@ data:
     - semeval2013-de
   dev_name: semeval2007
 
-  max_segments_in_batch: 2000
+  max_segments_in_batch: 1000
+  force_reload: False
 
 model:
   device: cuda
@@ -48,6 +49,7 @@ model:
 training:
   num_epochs: 50
   cache_instances: True
+  gradient_accumulation: 2
 
 #wandb:
 #  tags:

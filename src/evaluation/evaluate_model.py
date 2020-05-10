@@ -7,7 +7,6 @@ from typing import Dict, List
 import torch
 import yaml
 from allennlp.data import Vocabulary, DataLoader
-# from allennlp.data.token_indexers import PretrainedBertIndexer
 from allennlp.nn.util import move_to_device
 from pandas import DataFrame
 from tqdm import tqdm

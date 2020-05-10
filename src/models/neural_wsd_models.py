@@ -8,9 +8,9 @@ from allennlp.modules import TextFieldEmbedder
 from allennlp.modules.text_field_embedders import BasicTextFieldEmbedder
 from allennlp.modules.token_embedders import PretrainedTransformerEmbedder, PretrainedTransformerMismatchedEmbedder
 from allennlp.training.metrics import Metric
-from nlp_resources.allennlp_training_callbacks.callbacks import OutputWriter
-from nlp_resources.data_io.data_utils import Lemma2Synsets
-from nlp_resources.data_io.datasets import LabelVocabulary
+from nlp_tools.allennlp_training_callbacks.callbacks import OutputWriter
+from nlp_tools.data_io.data_utils import Lemma2Synsets
+from nlp_tools.data_io.datasets import LabelVocabulary
 from torch import nn
 from torch.nn import Parameter
 from torch.nn.modules.batchnorm import BatchNorm2d, BatchNorm1d
