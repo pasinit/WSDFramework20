@@ -1,58 +1,45 @@
+import os
 import subprocess
+from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import Dict, List
-from allennlp.data import Vocabulary
-from allennlp.data.iterators import BasicIterator, BucketIterator
-# from allennlp.data.token_indexers import PretrainedBertIndexer
-from allennlp.predictors import SentenceTaggerPredictor
-from argparse import ArgumentParser
 
-from data_io.datasets import AllenWSDDatasetReader
+import torch
+import yaml
+from allennlp.data import Vocabulary, DataLoader
+# from allennlp.data.token_indexers import PretrainedBertIndexer
+from allennlp.nn.util import move_to_device
 from pandas import DataFrame
 from tqdm import tqdm
 
 from src.data.dataset_utils import get_dataset_with_labels_from_data, get_wnoffsets_dataset, get_sensekey_dataset, \
-    get_bnoffsets_dataset, get_label_mapper
+    get_bnoffsets_dataset
 from src.models.neural_wsd_models import AllenWSDModel, WSDF1
-import torch
-
-import os
-import yaml
-
-# from src.training.wsd_trainer import get_token_indexer
-from src.utils.utils import get_token_indexer
+from src.utils.utils import get_token_indexer, get_model
 
 
-def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_mfs=False, mfs_vocab=None,
+def evaluate(data_loader, model, output_path, label_vocab, device, use_mfs=False, mfs_vocab=None,
              verbose=True, debug=False):
-    iterator = BasicIterator(
-        batch_size=64
-    )
-    # iterator = BucketIterator(
-    #     biggest_batch_first=False,
-    #     sorting_keys=[("tokens", "num_tokens")],
-    #     maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
-    # )
     f1_computer = WSDF1(label_vocab, use_mfs, mfs_vocab)
-    predictor = SentenceTaggerPredictor(model, dataset_reader)
-    batches = [x for x in iterator._create_batches(dataset_reader.read(dataset_path, label_mapper_getter=get_label_mapper), False)]
+    batch_generator = iter(data_loader)
     with open(output_path, "w") as writer, open(output_path.replace(".txt", ".mfs.txt"), "w") as mfs_writer, \
             open(output_path.replace(".txt", ".mfs.info.txt"), "w") as mfs_info_writer:
-        bar = batches
+        bar = batch_generator
         if verbose:
-            bar = tqdm(batches)
-        if debug:
-            debugwriter = open(output_path.replace(".txt", ".debug.txt"), "w")
+            bar = tqdm(batch_generator)
+        debugwriter = open("/tmp/debug.txt", "w")
         for batch in bar:
-            outputs = predictor.predict_batch_instance(batch.instances)
-            ids = [prediction["ids"] for prediction in outputs]
-            predictions = [prediction["full_predictions"] for prediction in outputs]
-            for i_ids, i_predictions, instance in zip(ids, predictions, batch):
+            if device >= 0:
+                batch = move_to_device(batch, device)
+            outputs = model(**batch)
+            ids = outputs["ids"]#[prediction["ids"] for prediction in outputs["predictions"]]
+            predictions = outputs["full_predictions"]#[prediction["full_predictions"] for prediction in outputs["predictions"]]
+            for i, (i_ids, i_predictions) in enumerate(zip(ids, predictions)):
                 i_predictions = [int(x) for x in i_predictions if x > 0.0]
-                i_labels = instance.fields["labels"].metadata
+                i_labels = [set(l) for l in batch["labels"][i] if l != ""]
                 assert len(i_ids) == len(i_predictions)
-                lemmapos = instance.fields["labeled_lemmapos"]
-                f1_computer(lemmapos, i_predictions, i_labels, ids=instance.fields["ids"].metadata)
+                lemmapos = batch["labeled_lemmapos"][i]
+                f1_computer(lemmapos, i_predictions, i_labels, ids=batch["ids"][i])
                 f1_computer.get_metric(False)
                 writer.write(
                     "\n".join(["{} {}".format(id, label_vocab.itos[p]) for id, p in zip(i_ids, i_predictions)]))
@@ -66,10 +53,10 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
                         "\n".join(["{} {}".format(id, p) for id, p in zip(i_ids, mfs_preds)]))
                     mfs_writer.write("\n")
                 if debug:
-                    debugwriter.write(" ".join(x.text for x in instance.fields["tokens"]) + "\n")
+                    debugwriter.write(" ".join(x.text for x in batch["tokens"]["tokens"]["token_ids"][i]) + "\n")
                     for id, lp, p, label, possible_labels in zip(i_ids, lemmapos, i_predictions, i_labels,
                                                                  [[label_vocab.get_string(y) for y in x] for x in
-                                                                  instance.fields["possible_labels"]]):
+                                                                  batch["possible_labels"][i]]):
                         is_mfs = label_vocab.itos[p] == "<unk>"
                         pred = mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
                         mfs_info_writer.write("{} {} {}\n".format(id, pred, "MFS" if is_mfs else ""))
@@ -85,8 +72,11 @@ def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_
 import pandas
 
 
-def evaluate_datasets(dataset_paths: List[str],
-                      dataset_reader: AllenWSDDatasetReader, checkpoint_path: str, model_name: str, label_vocab: Dict,
+def evaluate_datasets(wsd_model_name:str,
+                      layers_:List,
+                      data_loaders: List[DataLoader],
+                      test_names: List[str],
+                      checkpoint_path: str, encoder_name: str, label_vocab: Dict,
                       lemma2synsets: Dict,
                       device_int: int, mfs_dictionary: Dict,
                       use_mfs: bool,
@@ -95,24 +85,22 @@ def evaluate_datasets(dataset_paths: List[str],
                       verbose=True, debug=False,
 
                       ):
-    model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
-                                                          label_vocab,
-                                                          vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                          eval=True, cache_vectors=False,
-                                                          pad_token_id=padding, return_full_output=True)
+    model = get_model(False, device_int, encoder_name, False, label_vocab, layers_, lemma2synsets,
+                      mfs_dictionary, None, padding, wsd_model_name)
+
     model.load_state_dict(
         torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
     model.eval()
     all_metrics = dict()
     names = list()  # [dataset_path.split("/")[-1].split(".")[0] for dataset_path in dataset_paths]
     lines = list()
+    datasets = zip(data_loaders, test_names)
     if not verbose:
-        dataset_paths = tqdm(dataset_paths, desc="datasets_progress")
-    for dataset_path in dataset_paths:
-        name = dataset_path.split("/")[-1]  # .split(".")[0]
+        datasets = tqdm(datasets, desc="datasets_progress")
+    for data_loader, name in datasets:
         names.append(name)
-        metrics = evaluate(dataset_reader, dataset_path, model, os.path.join(output_path, name + ".predictions.txt"),
-                           label_vocab, use_mfs, mfs_dictionary, verbose=verbose, debug=debug)
+        metrics = evaluate(data_loader, model, os.path.join(output_path, name + ".predictions.txt"),
+                           label_vocab, device_int, use_mfs, mfs_dictionary, verbose=verbose, debug=debug)
         all_metrics[name] = OrderedDict(
             {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
              "f1_mfs": metrics.get("f1_mfs", None)})

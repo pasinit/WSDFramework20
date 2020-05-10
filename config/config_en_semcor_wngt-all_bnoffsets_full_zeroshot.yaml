@@ -1,0 +1,55 @@
+data:
+  langs:
+    - en
+    - it
+    - es
+    - fr
+    - de
+    - zh
+  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_3.0/Evaluation_Datasets/
+  train_data_root:
+    - /media/tommaso/4940d845-c3f3-4f0b-8985-f91a0b453b07/WSDframework/data/training_data/en_training_data/michele_trainingset/semcor.data.xml
+    - /media/tommaso/4940d845-c3f3-4f0b-8985-f91a0b453b07/WSDframework/data/training_data/en_training_data/michele_trainingset/wngt_michele_examples.data.xml
+    - /media/tommaso/4940d845-c3f3-4f0b-8985-f91a0b453b07/WSDframework/data/training_data/en_training_data/michele_trainingset/wngt_michele_glosses.data.xml
+  sense_inventory: bnoffsets
+  outpath: data4/models/en_semcor_wngt_all/
+  test_names:
+    - senseval2
+    - senseval3
+    - semeval2007
+    - semeval2007-coarse
+    - semeval2010
+    - semeval2013
+    - semeval2015
+    - ALL-no-semeval2007
+    - semeval2010-it
+    - semeval2010-zh
+    - semeval2013-it
+    - semeval2015-it
+    - semeval2013-es
+    - semeval2015-es
+    - semeval2013-fr
+    - semeval2013-de
+  dev_name: semeval2007
+
+  max_segments_in_batch: 2000
+
+model:
+  device: cuda
+  encoder_name: xlm-roberta-large #bert-base-multilingual-cased
+  wsd_model_name: batchnorm_wsd_classifier
+  learning_rate: 1e-4
+  layers_to_use:
+    - -1
+    - -2
+    - -3
+    - -4
+
+training:
+  num_epochs: 50
+  cache_instances: True
+
+#wandb:
+#  tags:
+#    - bert-large-cased
+#    - sensekey
