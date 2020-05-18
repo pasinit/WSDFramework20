@@ -1,0 +1,5 @@
+{
+  "url": "http://api.syntagnet.org/",
+  "disambiguate_text_endpoint": "disambiguate",
+  "disambiguate_tokens_endpoint":  "disambiguate_tokens"
+}

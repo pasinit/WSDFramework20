@@ -92,7 +92,7 @@ def evaluate_datasets(dataset_paths: List[str],
     model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
                                                           label_vocab,
                                                           vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                          eval=True, cache_vectors=False,
+                                                          eval=True, cache_instances=False,
                                                           pad_token_id=padding, return_full_output=True)
     model.load_state_dict(
         torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))

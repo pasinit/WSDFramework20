@@ -1,23 +1,6 @@
 data:
   langs:
     - en
-    - it
-    - es
-    - fr
-    - de
-    - zh
-    - ca
-    - bg
-    - eu
-    - gl
-    - hr
-    - da
-    - nl
-    - et
-    - hu
-    - ja
-    - ko
-    - sl
   test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_3.0/Evaluation_Datasets/
   train_data_root:
     en:
@@ -25,7 +8,7 @@ data:
       - /home/tommaso/dev/PycharmProjects/WSDframework/data2/training_data/en_training_data/wngt_michele/wngt_michele_examples/wngt_michele_examples.data.xml
       - /home/tommaso/dev/PycharmProjects/WSDframework/data2/training_data/en_training_data/wngt_michele/wngt_michele_glosses/wngt_michele_glosses.data.xml
   sense_inventory: bnoffsets
-  outpath: data4/models/en_semcor_wngt_bn_run_2/
+  outpath: data4/models/en_semcor_wngt_bn/
   test_names:
     en:
       - senseval2
@@ -36,46 +19,6 @@ data:
       - semeval2013
       - semeval2015
       - ALL-no-semeval2007
-    it:
-      - semeval2010-it
-      - semeval2013-it
-      - semeval2015-it
-      - wordnet-italian
-    es:
-      - semeval2013-es
-      - semeval2015-es
-      - wordnet-spanish
-    fr:
-      - semeval2013-fr
-    de:
-      - semeval2013-de
-    zh:
-      - semeval2010-zh
-      - wordnet-chinesesimply
-    gl:
-      - wordnet-galician
-    hr:
-      - wordnet-croatian
-    da:
-      - wordnet-danish
-    et:
-      - wordnet-estonian
-    ja:
-      - wordnet-japanese
-    hu:
-      - wordnet-hungarian
-    bg:
-      - wordnet-bulgarian
-    eu:
-      - wordnet-basque
-    ca:
-      - wordnet-catalan
-    ko:
-      - wordnet-korean
-    sl:
-      - wordnet-slovenian
-    nl:
-      - wordnet-dutch
   dev_name:
     - en
     - semeval2007
@@ -85,7 +28,7 @@ data:
 
 model:
   device: cuda
-  encoder_name: xlm-roberta-large #xlm-roberta-large #bert-base-multilingual-cased
+  encoder_name: bert-large-cased ##xlm-roberta-large #bert-base-multilingual-cased
   wsd_model_name: batchnorm_wsd_classifier #ff_wsd_classifier #batchnorm_wsd_classifier
   layers_to_use:
     - -1
@@ -102,7 +45,7 @@ training:
   learning_rate: 2e-5
   gradient_clipping: 1.0
   validation_metric: -loss
-random_seed: 123
+
 wandb:
   metrics_to_report:
     - f1
