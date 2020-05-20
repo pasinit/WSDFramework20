@@ -1,7 +1,7 @@
 numpy
 torch
 wandb
-allennlp==1.0.0rc4
+allennlp==1.0.0rc4.dev20200505
 lxml
 pandas
 tabulate
