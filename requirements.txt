@@ -2,3 +2,6 @@ numpy
 torch
 wandb
 allennlp==1.0.0rc4
+lxml
+pandas
+tabulate
