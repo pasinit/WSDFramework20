@@ -9,6 +9,7 @@ import _pickle as pkl
 from allennlp.data import Vocabulary
 from allennlp.data.dataset_readers.dataset_reader import AllennlpDataset
 from allennlp.data.token_indexers import PretrainedTransformerMismatchedIndexer
+from allennlp.nn.util import move_to_device
 from nlp_tools.allen_data.iterators import get_bucket_iterator
 from nlp_tools.allennlp_training_callbacks.callbacks import OutputWriter
 from nlp_tools.data_io.data_utils import Lemma2Synsets, MultilingualLemma2Synsets
@@ -255,14 +256,17 @@ def get_dataset(encoder_name: str,
 
 
 def get_dev_dataset(dev_lang, dev_name, test_dss: Dict[str,List[str]], test_names):
-    dev_ds = None
+    dev_ds = None,None
     if dev_name is not None:
         lang_dss = test_dss[dev_lang]
         names = test_names[dev_lang]
         if lang_dss is None:
-            return None
-        dev_index = names.index(dev_name)
-        dev_ds = lang_dss[dev_index]
+            return None,None
+        try:
+            dev_index = names.index(dev_name)
+            dev_ds = lang_dss[dev_index]
+        except:
+            return None,None
     return dev_ds
 
 
@@ -287,7 +291,7 @@ def build_outpath_subdirs(path):
         pass
 
 
-def get_data(sense_inventory, langs, mfs_file, **kwargs) -> Tuple[Lemma2Synsets, Dict, LabelVocabulary]:
+def get_data(sense_inventory, langs, mfs_file, **kwargs) -> Tuple[MultilingualLemma2Synsets, Dict, LabelVocabulary]:
     if sense_inventory == "wnoffsets":
         getter = get_wnoffsets_data
     elif sense_inventory == "sensekeys":

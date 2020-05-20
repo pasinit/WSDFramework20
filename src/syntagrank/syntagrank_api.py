@@ -52,10 +52,12 @@ class AnnotatedText(tuple):
 
 class SyntagRankAPI(object):
     class __SyntagRankAPI(object):
-        def __init__(self, config, wn2bn=None):
+        def __init__(self, config, wnmap=None, use_senses=False):
             with open(config) as reader:
                 self.config = json.load(reader)
-            self.wn2bn = wn2bn
+            self.wnmap = wnmap
+            self.use_senses = use_senses
+
 
         def __maybe_error(self, r, answer):
             if r.status_code != 200:
@@ -74,8 +76,13 @@ class SyntagRankAPI(object):
                 start, end = positions["charOffsetBegin"], positions["charOffsetEnd"]
                 text_span = text[start:end]
                 annotated_token["word"] = text_span
-                if self.wn2bn is not None:
-                    annotated_token["senseID"] = self.wn2bn[annotated_token["senseID"]]
+                if self.wnmap is not None:
+                    if self.use_senses:
+                        wnid = annotated_token["senseID"]
+                        sense = list(filter(lambda sense: annotated_token["lemma"] in sense, self.wnmap[wnid]))[0]
+                        annotated_token["senseID"] = sense
+                    else:
+                        annotated_token["senseID"] = self.wnmap[annotated_token["senseID"]]
             tokens = answer["tokens"]
             return AnnotatedText.from_json(tokens)
 
@@ -110,17 +117,22 @@ class SyntagRankAPI(object):
                 id = tagged_token["id"]
                 idx = id2token_idx[id]
                 synset = tagged_token["synset"]
-                if self.wn2bn is not None:
-                    synset = self.wn2bn[synset]
+                if self.wnmap is not None:
+                    if self.use_senses:
+                        wnid = synset
+                        sense = list(filter(lambda sense: tokens[idx]["lemma"] == sense.split("%")[0], self.wnmap[wnid]))[0]
+                        synset = sense
+                    else:
+                        synset = self.wnmap[synset]
                 tokens[idx]["senseID"] = synset
                 tokens[idx]["token_id"] = id
             return AnnotatedText.from_json(tokens)
 
     instance = None
 
-    def __init__(self, config, wn2bn:Dict[str, str]=None):
+    def __init__(self, config, wn2bn:Dict[str, str]=None, senses=False):
         if not SyntagRankAPI.instance:
-            SyntagRankAPI.instance = SyntagRankAPI.__SyntagRankAPI(config, wn2bn)
+            SyntagRankAPI.instance = SyntagRankAPI.__SyntagRankAPI(config, wn2bn, senses)
 
     def __getattr__(self, name):
         return getattr(self.instance, name)

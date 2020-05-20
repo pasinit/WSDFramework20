@@ -105,10 +105,10 @@ def evaluate_datasets(model: AllenWSDModel,
                 {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
                  "f1_mfs": metrics.get("f1_mfs", None)})
             if verbose:
-                print(f"{name}: precision: {metrics['precision']}, recall: {metrics['recall']}, f1: {metrics['f1']}")
-            lines.append([metrics["f1"]])
+                print(f"{name}: instances: {metrics['total']}, precision: {metrics['precision']}, recall: {metrics['recall']}, f1: {metrics['f1']}")
+            lines.append([metrics["total"],metrics["f1"]])
     print("SUMMARY:")
-    d = DataFrame(lines, columns=["F1"], index=names)
+    d = DataFrame(lines, columns=["instances","F1"], index=names)
     with pandas.option_context('display.max_rows', None, 'display.max_columns',
                                None, 'display.float_format', '{:0.3f}'.format):
         print(d.to_csv(sep="\t"))

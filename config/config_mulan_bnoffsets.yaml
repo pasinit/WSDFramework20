@@ -1,0 +1,48 @@
+data:
+  langs:
+      - es 
+  test_data_root: /home/tommaso/Documents/data/WSD_Evaluation_Framework_3.0/new_evaluation_datasets #/home/tommaso/Documents/data/WSD_Evaluation_Framework_3.0/Evaluation_Datasets/
+  train_data_root:
+    es:
+        - /media/tommaso/4940d845-c3f3-4f0b-8985-f91a0b453b07/WSDframework/data/training_data/multilingual_training_data/mulan/mulan-es/mulan-es.data.xml
+  sense_inventory: bnoffsets
+
+  outpath: data4/models/es_mulan_run_1/
+  test_names:
+    es:
+      - test-es
+      - dev-es
+  dev_name:
+    - es
+    - dev-es
+
+  max_segments_in_batch: 1000
+  force_reload: True
+
+model:
+  device: cuda
+  encoder_name: xlm-roberta-large #xlm-roberta-large #bert-base-multilingual-cased
+  wsd_model_name: batchnorm_wsd_classifier #ff_wsd_classifier #batchnorm_wsd_classifier
+  layers_to_use:
+    - -1
+    - -2
+    - -3
+    - -4
+  cache_instances: True
+  finetune_embedder: False
+
+training:
+  num_epochs: 50
+  gradient_accumulation: 1
+  patience: 3
+  learning_rate: 2e-5
+  gradient_clipping: 1.0
+  validation_metric: -loss
+random_seed: 421
+wandb:
+  run_name: mulan-es_batchnorm_wsd_classifier_xlm-roberta-large
+  metrics_to_report:
+    - f1
+    - loss
+    - epoch
+  soft_match: True

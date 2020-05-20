@@ -188,9 +188,11 @@ class AllenWSDModel(Model, ABC):
         self.cache.update(dict(zip([x for y in instance_ids for x in y], embeddings.detach().cpu())))
         return embeddings
 
-    def get_embeddings(self, tokens, mask, instance_ids):
+    def get_embeddings(self, tokens, mask=None, instance_ids=None):
 
-        retrieved_embedding_mask = mask != 0
+        retrieved_embedding_mask = None
+        if mask is not None:
+            retrieved_embedding_mask = mask != 0
         if not self.training:
             embeddings = self.word_embeddings(tokens)
         elif not self.finetune_embedder:
@@ -201,8 +203,11 @@ class AllenWSDModel(Model, ABC):
                 return self.get_embeddings_from_cache(tokens, mask, instance_ids), retrieved_embedding_mask
         else:
             embeddings = self.word_embeddings(tokens)
-        masked_embeddings = embeddings[retrieved_embedding_mask]
-        embeddings = masked_embeddings
+        if retrieved_embedding_mask is not None:
+            masked_embeddings = embeddings[retrieved_embedding_mask]
+            embeddings = masked_embeddings
+        else:
+            embeddings = embeddings.view(-1, embeddings.shape[-1])
 
         return embeddings, retrieved_embedding_mask
 
@@ -210,37 +215,69 @@ class AllenWSDModel(Model, ABC):
     def wsd_head(self, embeddings):
         pass
 
+    def predict(self, tokens: Dict[str, torch.Tensor], tokens_to_disambiguate: torch.Tensor = None):
+        """
+        :param tokens:
+        :param tokens_to_disambiguate: tensor having 0 for those positions which should not be disambiguated and 1
+        in those positions that we want to disambiguate.
+        :return: a list containing the logits for those thones that had to be disambiguated.
+        """
+        embeddings, _ = self.get_embeddings(tokens, tokens_to_disambiguate, None)
+        logits = self.wsd_head(embeddings).tolist()
+        if tokens_to_disambiguate is not None:
+            output = list()
+            for mask in tokens_to_disambiguate:
+                output.append([logits.pop() for _ in range(sum(mask))])
+            return output
+        return logits
+
     def forward(self, tokens: Dict[str, torch.Tensor],
-                ids: Any, label_ids: torch.Tensor,
-                possible_labels, labeled_lemmapos,
-                labels, cache_instance_ids, **kwargs) -> torch.Tensor:
-        mask = (label_ids != self.label_pad_id).float().to(tokens["tokens"]["token_ids"].device)
+                possible_labels=None,
+                ids: Any = None,
+                label_ids: torch.Tensor = None,
+                labeled_lemmapos=None,
+                labels=None,
+                cache_instance_ids=None,
+                compute_accuracy=True,
+                compute_loss=True,
+                **kwargs) -> torch.Tensor:
+        if label_ids is not None:
+            mask = (label_ids != self.label_pad_id).float().to(tokens["tokens"]["token_ids"].device)
+        else:
+            mask = None
 
         embeddings, retrieved_embedding_mask = self.get_embeddings(tokens, mask, cache_instance_ids)
         labeled_logits = self.wsd_head(embeddings)
 
         predictions = None
-        target_labels = label_ids[retrieved_embedding_mask]
-        if not self.training:
-            flatten_labels = [x for y in labels for x in y if x != ""]
+
+        if possible_labels is not None:
             possible_labels = [x for y in possible_labels for x in y]
             possible_classes_mask = torch.zeros_like(labeled_logits)
             for i, ith_lp in enumerate(possible_labels):
                 possible_classes_mask[i][possible_labels[i]] = 1
             possible_classes_mask[:, 0] = 0
             masked_labeled_logits = labeled_logits * possible_classes_mask
+        else:
+            masked_labeled_logits = labeled_logits
+        if not self.training and compute_accuracy:
+            assert labeled_lemmapos is not None and labels is not None
+            flatten_labels = [x for y in labels for x in y if x != ""]
+
             predictions = self.get_predictions(masked_labeled_logits)
             self.accuracy([x for y in labeled_lemmapos for x in y], predictions.tolist(), flatten_labels)
-
-        output = {"class_logits": labeled_logits,
+        loss = None
+        if compute_loss:
+            target_labels = label_ids[retrieved_embedding_mask]
+            loss = self.loss(labeled_logits, target_labels)
+        output = {"class_logits": masked_labeled_logits,
                   "all_logits": labeled_logits,
                   "predictions": predictions,
                   "labels": labels,
                   "all_labels": label_ids,
                   "str_labels": labels,
-                  "ids": [[x for x in i if x is not None] for i in ids],
-                  "loss":
-                      self.loss(labeled_logits, target_labels)}
+                  "ids": [[x for x in i if x is not None] for i in ids] if ids is not None else None,
+                  "loss": loss}
         if self.return_full_output:
             full_labeled_logits, full_predictions = self.reconstruct_full_output(retrieved_embedding_mask,
                                                                                  labeled_logits,

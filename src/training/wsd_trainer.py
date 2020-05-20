@@ -32,7 +32,6 @@ def init_seeds(seed):
 
 logger = get_info_logger(__name__)
 
-
 def main(args):
     with open(args.config) as reader:
         config = yaml.load(reader, Loader=yaml.FullLoader)
@@ -51,7 +50,7 @@ def main(args):
     max_segments_in_batch = data_config["max_segments_in_batch"]
     inventory_dir = data_config.get("inventory_dir", "none")
     dev_lang, dev_name = data_config.get("dev_name", (None, None))
-
+    wandb_config = config["wandb"]
     mfs_file = data_config.get("mfs_file", None)
     device = model_config["device"]
     encoder_name = model_config["encoder_name"]
@@ -59,8 +58,11 @@ def main(args):
     learning_rate = float(training_config["learning_rate"])
     num_epochs = training_config["num_epochs"]
     patience = training_config["patience"]
+
+    wandb_run_name = wandb_config.get("run_name", wsd_model_name + "_" + encoder_name)
+
     wandb.init(config=config, project="wsd_framework_3.0", tags=[socket.gethostname(), wsd_model_name, ",".join(langs)],
-               name=wsd_model_name + "_" + encoder_name)
+               name=wandb_run_name)
     wandb.log({"random_seed": seed})
     logger.info("loading config: " + args.config)
     pprint(config)
@@ -97,9 +99,15 @@ def main(args):
                 for lang, test_paths in lang2test_paths.items()}
 
     dev_ds, dev_iterator = get_dev_dataset(dev_lang, dev_name, test_dss, test_lang2name)
+    if dev_ds is None:
+        dev_path = os.path.join(test_data_root, dev_name, dev_name + ".data.xml")
+        dev_label_mapper = get_mapper({dev_lang:[dev_path]}, sense_inventory)
+        get_allen_datasets(None, encoder_name, lemma2synsets, label_vocab, dev_label_mapper,
+                           max_segments_in_batch, {dev_lang:[dev_path]}, True, serialize=False, is_trainingset=False)
     metric = WSDF1(label_vocab, mfs_dictionary is not None, mfs_dictionary)
     logger.info("loading model")
-    model = get_model(model_config, len(label_vocab), training_ds.pad_token_id,
+    model = get_model(model_config, len(label_vocab),
+                      training_ds.pad_token_id,
                       label_vocab.stoi["<pad>"],
                       metric=metric)
 
