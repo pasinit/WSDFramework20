@@ -228,18 +228,18 @@ def get_allen_datasets(cached_dataset_file_name: str,
                        force_reload: bool,
                        serialize=True,
                        is_trainingset=True):
-    if not force_reload and os.path.exists(os.path.join(".cache/", cached_dataset_file_name)):
-        logger.info("Loading datasetset from cache: {}".format(os.path.join(".cache/", cached_dataset_file_name)))
-        logger.info(lang2paths)
-        with open(os.path.join(".cache/", cached_dataset_file_name), "rb") as reader:
-            training_iterator, training_ds = pkl.load(reader)
-    else:
-        training_ds = get_dataset(encoder_name, lang2paths, lemma2synsets, label_mapper, label_vocab)
-        training_ds.index_with(Vocabulary())
-        training_iterator = get_bucket_iterator(training_ds, max_segments_in_batch, is_trainingset=is_trainingset)
-        if serialize:
-            with open(os.path.join(".cache/", cached_dataset_file_name), "wb") as writer:
-                pkl.dump((training_iterator, training_ds), writer)
+    # if not force_reload and os.path.exists(os.path.join(".cache/", cached_dataset_file_name)):
+    #     logger.info("Loading datasetset from cache: {}".format(os.path.join(".cache/", cached_dataset_file_name)))
+    #     logger.info(lang2paths)
+    #     with open(os.path.join(".cache/", cached_dataset_file_name), "rb") as reader:
+    #         training_iterator, training_ds = pkl.load(reader)
+    # else:
+    training_ds = get_dataset(encoder_name, lang2paths, lemma2synsets, label_mapper, label_vocab)
+    training_ds.index_with(Vocabulary())
+    training_iterator = get_bucket_iterator(training_ds, max_segments_in_batch, is_trainingset=is_trainingset)
+    # if serialize:
+    #     with open(os.path.join(".cache/", cached_dataset_file_name), "wb") as writer:
+    #         pkl.dump((training_iterator, training_ds), writer)
     return training_ds, training_iterator
 
 

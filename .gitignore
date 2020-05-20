@@ -23,4 +23,5 @@ venv
 data4
 logs
 wsd_framework_venv/
-.config/
+config
+.config
