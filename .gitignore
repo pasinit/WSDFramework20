@@ -22,3 +22,5 @@ data/
 venv
 data4
 logs
+config
+.config
