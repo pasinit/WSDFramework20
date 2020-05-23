@@ -62,7 +62,7 @@ def main(args):
     wandb_run_name = wandb_config.get("run_name", wsd_model_name + "_" + encoder_name)
 
     wandb.init(config=config, project="wsd_framework_3.0", tags=[socket.gethostname(), wsd_model_name, ",".join(langs)],
-               name=wandb_run_name)
+               name=wandb_run_name, resume=wandb_config.get("resume", False))
     wandb.log({"random_seed": seed})
     logger.info("loading config: " + args.config)
     pprint(config)
@@ -109,7 +109,7 @@ def main(args):
     model = get_model(model_config, len(label_vocab),
                       training_ds.pad_token_id,
                       label_vocab.stoi["<pad>"],
-                      metric=metric)
+                      metric=metric, device=device)
 
     callbacks = list()
     wandb_logger = WanDBLogger(metrics_to_report=config["wandb"]["metrics_to_report"])
