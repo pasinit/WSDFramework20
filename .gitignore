@@ -25,3 +25,4 @@ logs
 wsd_framework_venv/
 config
 .config
+wsdframework_data.tar.gz

@@ -64,24 +64,29 @@ def load_wnid2sensekey(path):
     return wnid2sensekeys
 
 if __name__ == "__main__":
-    # wn2bn_path = "/home/tommaso/dev/PycharmProjects/WSDframework/resources/mappings/all_bn_wn_keys.txt"
-    # wn2bn = load_wn2bn(wn2bn_path)
-    wnmap = load_wnid2sensekey("/opt/WordNet-3.0/dict/index.sense")
-    syntagrank = SyntagRankAPI("syntagrank_config/config.json", wnmap, senses=True)
+    wn2bn_path = "/home/tommaso/dev/PycharmProjects/WSDframework/resources/mappings/all_bn_wn.txt"
+    wnmap = load_wn2bn(wn2bn_path)
+    # wnmap = load_wnid2sensekey("/opt/WordNet-3.0/dict/index.sense")
+    syntagrank = SyntagRankAPI("syntagrank_config/config.json", wnmap, senses=False)
     # datasets = "senseval2 senseval3 semeval2007 semeval2007-coarse semeval2010 semeval2013 semeval2015 ALL-no-semeval2007".split()# semeval2010-it semeval2013-it semeval2015-it wordnet-italian semeval2013-es semeval2015-es wordnet-spanish semeval2013-fr semeval2013-de".split()
     # langs = "en en en en en en en en".split()# it it it it es es es".split()
-    datasets = "test-en dev-en test-en-coarse test-en-no-sem10-no-sem07".split()# test-it dev-it test-es dev-es test-fr dev-fr test-de dev-de".split()
-    langs = "en en en en".split()# it it es es fr fr de de".split()
-    for dataset,lang in zip(datasets, langs):
-        # if "-" in dataset:
-        #     lang = dataset.split("-")[-1]
-        #     lang = lang[:2]
-        # else: lang = "en"
-        #
-        # if lang == "sp":
-        #     lang = "es"
+    # datasets = "test-en dev-en test-en-coarse test-en-no-sem10-no-sem07".split()# test-it dev-it test-es dev-es test-fr dev-fr test-de dev-de".split()
+    # langs = "en en en en".split()# it it es es fr fr de de".split()
+    datasets = ["test-bg"]
+    langs = ["bg"]
+    # for dataset,lang in zip(datasets, langs):
+    for lang in "ca,bg,da,et,eu,gl,hr,hu,ja,ko,nl,sl,zh".split(","):
+        dataset = "test-"+lang
+        logger.info(dataset)
+        # tag_with_syntagrank(syntagrank,
+        #                     f"/home/tommaso/Documents/data/WSD_Evaluation_Framework_3.0/new_evaluation_datasets_prep/{dataset}/{dataset}.data.xml",
+        #                     lang,
+        #                     f"data4/models/syntagrank/evaluation/{dataset}.predictions.txt")
+
+        dataset = "dev-"+lang
         logger.info(dataset)
         tag_with_syntagrank(syntagrank,
-                            f"/home/tommaso/Documents/data/WSD_Evaluation_Framework_3.0/new_evaluation_datasets/{dataset}/{dataset}.data.xml",
+                            f"/home/tommaso/Documents/data/WSD_Evaluation_Framework_3.0/new_evaluation_datasets_prep/{dataset}/{dataset}.data.xml",
                             lang,
                             f"data4/models/syntagrank/evaluation/{dataset}.predictions.txt")
+

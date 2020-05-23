@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import wandb
 import yaml
+from allennlp.nn.util import move_to_device
 from allennlp.training import GradientDescentTrainer, Checkpointer
 from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite, WanDBLogger
 from torch.optim import Adam
@@ -75,7 +76,7 @@ def main(args):
     lang2test_paths = {lang: [os.path.join(test_data_root, name, name + ".data.xml") for name in names] for lang, names
                        in test_lang2name.items()}
     training_paths = train_lang2paths
-    outpath = os.path.join(outpath, wsd_model_name + "_" + encoder_name)
+    outpath = os.path.join(outpath, wsd_model_name + "_" + encoder_name.replace("/", "_"))
     build_outpath_subdirs(outpath)
 
     lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, invetory_dir = inventory_dir)
