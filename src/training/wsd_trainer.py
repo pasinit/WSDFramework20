@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import wandb
 import yaml
+from allennlp.nn.util import move_to_device
 from allennlp.training import GradientDescentTrainer, Checkpointer
 from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite, WanDBLogger
 from torch.optim import Adam
@@ -62,7 +63,8 @@ def main(args):
     wandb_run_name = wandb_config.get("run_name", wsd_model_name + "_" + encoder_name)
 
     wandb.init(config=config, project="wsd_framework_3.0", tags=[socket.gethostname(), wsd_model_name, ",".join(langs)],
-               name=wandb_run_name)
+               name=wandb_run_name, resume=wandb_config.get("resume", False))
+
     wandb.log({"random_seed": seed})
     logger.info("loading config: " + args.config)
     pprint(config)
@@ -75,7 +77,7 @@ def main(args):
     lang2test_paths = {lang: [os.path.join(test_data_root, name, name + ".data.xml") for name in names] for lang, names
                        in test_lang2name.items()}
     training_paths = train_lang2paths
-    outpath = os.path.join(outpath, wsd_model_name + "_" + encoder_name)
+    outpath = os.path.join(outpath, wsd_model_name + "_" + encoder_name.replace("/", "_"))
     build_outpath_subdirs(outpath)
 
     lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, invetory_dir = inventory_dir)
@@ -109,7 +111,7 @@ def main(args):
     model = get_model(model_config, len(label_vocab),
                       training_ds.pad_token_id,
                       label_vocab.stoi["<pad>"],
-                      metric=metric)
+                      metric=metric, device=device)
 
     callbacks = list()
     wandb_logger = WanDBLogger(metrics_to_report=config["wandb"]["metrics_to_report"])
