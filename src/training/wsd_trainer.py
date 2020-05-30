@@ -64,7 +64,6 @@ def main(args):
 
     wandb.init(config=config, project="wsd_framework_3.0", tags=[socket.gethostname(), wsd_model_name, ",".join(langs)],
                name=wandb_run_name, resume=wandb_config.get("resume", False))
-
     wandb.log({"random_seed": seed})
     logger.info("loading config: " + args.config)
     pprint(config)
