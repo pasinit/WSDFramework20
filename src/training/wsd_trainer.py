@@ -12,8 +12,10 @@ import wandb
 import yaml
 from allennlp.nn.util import move_to_device
 from allennlp.training import GradientDescentTrainer, Checkpointer
+from allennlp.training.optimizers import AdamOptimizer
 from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite, WanDBLogger
 from torch.optim import Adam
+from transformers import AdamW
 
 from src.data.dataset_utils import build_outpath_subdirs, get_mapper, get_data, get_cached_dataset_file_name, \
     get_dev_dataset, get_allen_datasets
@@ -21,6 +23,7 @@ from src.evaluation.evaluate_model import evaluate_datasets
 from src.misc.wsdlogging import get_info_logger
 from src.models.neural_wsd_models import WSDOutputWriter, WSDF1
 from src.utils.utils import get_model
+
 
 # seeds =[421, 123, 5124]
 # seed = seeds[1]
@@ -32,6 +35,7 @@ def init_seeds(seed):
 
 
 logger = get_info_logger(__name__)
+
 
 def main(args):
     with open(args.config) as reader:
@@ -56,12 +60,24 @@ def main(args):
     device = model_config["device"]
     encoder_name = model_config["encoder_name"]
     wsd_model_name = model_config["wsd_model_name"]
-    learning_rate = float(training_config["learning_rate"])
+
     num_epochs = training_config["num_epochs"]
     patience = training_config["patience"]
 
+    if args.gradient_clipping is not None:
+        training_config["gradient_clipping"] = args.gradient_clipping
+    if args.learning_rate is not None:
+        training_config["learning_rate"] = args.learning_rate
+    if args.weight_decay is not None:
+        training_config["weight_decay"] = args.weight_decay
+    if args.dropout_1 is not None:
+        model_config["dropout_1"] = args.dropout_1
+    if args.dropout_2 is not None:
+        model_config["dropout_2"] = args.dropout_2
+    learning_rate = float(training_config["learning_rate"])
+    weight_decay = float(training_config["weight_decay"])
+    gradient_clipping = training_config.get("gradient_clipping", None)
     wandb_run_name = wandb_config.get("run_name", wsd_model_name + "_" + encoder_name)
-
     wandb.init(config=config, project="wsd_framework_3.0", tags=[socket.gethostname(), wsd_model_name, ",".join(langs)],
                name=wandb_run_name, resume=wandb_config.get("resume", False))
     wandb.log({"random_seed": seed})
@@ -79,7 +95,7 @@ def main(args):
     outpath = os.path.join(outpath, wsd_model_name + "_" + encoder_name.replace("/", "_"))
     build_outpath_subdirs(outpath)
 
-    lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, invetory_dir = inventory_dir)
+    lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, invetory_dir=inventory_dir)
     train_label_mapper = get_mapper(training_paths, sense_inventory)
 
     train_cached_dataset_file_name = get_cached_dataset_file_name(encoder_name, sense_inventory, training_paths,
@@ -102,20 +118,20 @@ def main(args):
     dev_ds, dev_iterator = get_dev_dataset(dev_lang, dev_name, test_dss, test_lang2name)
     if dev_ds is None:
         dev_path = os.path.join(test_data_root, dev_name, dev_name + ".data.xml")
-        dev_label_mapper = get_mapper({dev_lang:[dev_path]}, sense_inventory)
+        dev_label_mapper = get_mapper({dev_lang: [dev_path]}, sense_inventory)
         get_allen_datasets(None, encoder_name, lemma2synsets, label_vocab, dev_label_mapper,
-                           max_segments_in_batch, {dev_lang:[dev_path]}, True, serialize=False, is_trainingset=False)
+                           max_segments_in_batch, {dev_lang: [dev_path]}, True, serialize=False, is_trainingset=False)
     metric = WSDF1(label_vocab, mfs_dictionary is not None, mfs_dictionary)
     logger.info("loading model")
     model = get_model(model_config, len(label_vocab),
                       training_ds.pad_token_id,
                       label_vocab.stoi["<pad>"],
                       metric=metric, device=device)
-    #pytorch_total_params = sum(p.numel() for p in model.parameters())
-    #pytorch_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    #logger.info("Total number of parameters: ", pytorch_total_params)
-    #logger.info("Trainable parameters: ",pytorch_trainable_params)
-    #exit(1)
+    # pytorch_total_params = sum(p.numel() for p in model.parameters())
+    # pytorch_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # logger.info("Total number of parameters: ", pytorch_total_params)
+    # logger.info("Trainable parameters: ",pytorch_trainable_params)
+    # exit(1)
     callbacks = list()
     wandb_logger = WanDBLogger(metrics_to_report=config["wandb"]["metrics_to_report"])
     for lang, lang_tdss in test_dss.items():
@@ -130,18 +146,23 @@ def main(args):
             callbacks.append(tandw)
 
     callbacks.append(WanDBTrainingCallback(wandb_logger))
+    optim = AdamOptimizer(model.named_parameters(), lr=learning_rate, weight_decay=weight_decay)
+    if args.no_checkpoint:
+        serialization_dir = None
+    else:
+        serialization_dir = os.path.join(outpath, "checkpoints")
     trainer = GradientDescentTrainer(model=model,
-                                     optimizer=Adam(model.parameters(), lr=learning_rate),
+                                     optimizer=optim,
                                      data_loader=training_iterator,
                                      cuda_device=device_int,
-                                     grad_clipping=training_config.get("gradient_clipping", None),
+                                     grad_clipping=gradient_clipping,
                                      num_epochs=num_epochs,
                                      validation_data_loader=dev_iterator,
                                      num_gradient_accumulation_steps=training_config.get("gradient_accumulation", 1),
                                      validation_metric=training_config.get("validation_metric", "-loss"),
                                      epoch_callbacks=callbacks,
                                      patience=patience,
-                                     serialization_dir=os.path.join(outpath, "checkpoints"),
+                                     serialization_dir=serialization_dir,
                                      checkpointer=Checkpointer(os.path.join(outpath, "checkpoints"),
                                                                num_serialized_models_to_keep=1),
                                      )
@@ -170,7 +191,14 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--config", required=True)  # default="config/config_es_s+g+o.yaml")
     parser.add_argument("--dryrun", action="store_true")
+    parser.add_argument("--no_checkpoint", action="store_true")
     parser.add_argument("--reload_checkpoint", action="store_true", default=False)
+    parser.add_argument("--weight_decay")
+    parser.add_argument("--dropout_1")
+    parser.add_argument("--dropout_2")
+    parser.add_argument("--learning_rate")
+    parser.add_argument("--gradient_clipping")
+
     args = parser.parse_args()
     if args.dryrun:
         os.environ["WANDB_MODE"] = "dryrun"

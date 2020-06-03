@@ -368,17 +368,23 @@ class AllenBatchNormWsdModel(AllenWSDModel):
         self.classifier = nn.Linear(embedding_size, out_sz, bias=False)
         self.batchnorm = BatchNorm1d(embedding_size)
         self.linear = nn.Linear(embedding_size, embedding_size)
-        if "dropout" in kwargs:
-            self.dropout_prob = kwargs.pop("dropout")
+        if "dropout_1" in kwargs:
+            self.dropout_prob_1 = kwargs.pop("dropout_1")
         else:
-            self.dropout_prob = 0.0
-        self.dropout = nn.Dropout(self.dropout_prob)
+            self.dropout_prob_1 = 0.0
+        if "dropout_2" in kwargs:
+            self.dropout_prob_2 = kwargs.pop("dropout_2")
+        else:
+            self.dropout_prob_2 = 0.0
+        self.dropout_1 = nn.Dropout(self.dropout_prob_2)
+        self.dropout_2 = nn.Dropout(self.dropout_prob_2)
 
 
     def wsd_head(self, embeddings):
+        embeddings = self.dropout_1(embeddings)
         if len(embeddings) > 1:
             embeddings = self.batchnorm(embeddings)
 
-        embeddings = self.dropout(embeddings)
+        embeddings = self.dropout_2(embeddings)
         embeddings = swish(self.linear(embeddings))
         return self.classifier(embeddings)  # mask.unsqueeze(-1)
