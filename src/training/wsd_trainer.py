@@ -151,7 +151,6 @@ def main(args):
         serialization_dir = None
     else:
         serialization_dir = os.path.join(outpath, "checkpoints")
-    print("DIO CANE ", serialization_dir)
     trainer = GradientDescentTrainer(model=model,
                                      optimizer=optim,
                                      data_loader=training_iterator,
