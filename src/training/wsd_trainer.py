@@ -191,7 +191,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--config", required=True)  # default="config/config_es_s+g+o.yaml")
     parser.add_argument("--dryrun", action="store_true")
-    parser.add_argument("--no_checkpoint", action="store_true")
+    parser.add_argument("--no_checkpoint", default=False, type=bool)
     parser.add_argument("--reload_checkpoint", action="store_true", default=False)
     parser.add_argument("--weight_decay")
     parser.add_argument("--dropout_1")
