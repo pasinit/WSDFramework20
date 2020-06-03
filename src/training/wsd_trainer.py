@@ -111,7 +111,11 @@ def main(args):
                       training_ds.pad_token_id,
                       label_vocab.stoi["<pad>"],
                       metric=metric, device=device)
-
+    #pytorch_total_params = sum(p.numel() for p in model.parameters())
+    #pytorch_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    #logger.info("Total number of parameters: ", pytorch_total_params)
+    #logger.info("Trainable parameters: ",pytorch_trainable_params)
+    #exit(1)
     callbacks = list()
     wandb_logger = WanDBLogger(metrics_to_report=config["wandb"]["metrics_to_report"])
     for lang, lang_tdss in test_dss.items():

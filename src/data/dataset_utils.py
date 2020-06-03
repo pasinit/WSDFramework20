@@ -311,7 +311,6 @@ def get_mapper(training_paths, sense_inventory):
     for f in paths:
         with open(f.replace(".data.xml", ".gold.key.txt")) as reader:
             all_labels.extend([l.split(" ")[1] for l in reader if len(l.strip()) > 0])
-
     label_mapper = get_label_mapper(target_inventory=sense_inventory, labels=all_labels)
     if label_mapper is not None and len(label_mapper) > 0: ## handles the case when training set has a key set and test sets h
         for k, v in list(label_mapper.items()):
