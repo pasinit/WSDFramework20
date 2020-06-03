@@ -151,6 +151,7 @@ def main(args):
         serialization_dir = None
     else:
         serialization_dir = os.path.join(outpath, "checkpoints")
+    print("DIO CANE ", serialization_dir)
     trainer = GradientDescentTrainer(model=model,
                                      optimizer=optim,
                                      data_loader=training_iterator,
@@ -163,7 +164,7 @@ def main(args):
                                      epoch_callbacks=callbacks,
                                      patience=patience,
                                      serialization_dir=serialization_dir,
-                                     checkpointer=Checkpointer(os.path.join(outpath, "checkpoints"),
+                                     checkpointer=Checkpointer(serialization_dir,
                                                                num_serialized_models_to_keep=1),
                                      )
 
