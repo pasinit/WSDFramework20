@@ -36,3 +36,22 @@ def get_token_indexer(model_name):
         model_name=model_name,
     )
     return indexer, indexer._tokenizer.pad_token_id
+
+
+import yaml
+
+if __name__ == "__main__":
+    config = "/home/tommaso/dev/PycharmProjects/WSDframework/config/config_mulan_bnoffsets.yaml"
+    with open(config) as reader:
+        config = yaml.load(reader, Loader=yaml.FullLoader)
+    seed = config["random_seed"]
+    data_config = config["data"]
+    model_config = config["model"]
+    model = get_model(model_config, 117660,
+                      0,
+                      0)
+
+    pytorch_total_params = sum(p.numel() for p in model.parameters())
+    pytorch_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(pytorch_total_params)
+    print(pytorch_trainable_params)

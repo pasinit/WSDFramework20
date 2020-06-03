@@ -128,7 +128,7 @@ class AllenWSDModel(Model, ABC):
                  pad_id=0,
                  label_pad_id=0,
                  metric: Metric = None,
-                 embedding_size: int = None):
+                 embedding_size: int = None, **kwargs):
         vocab = Vocabulary() if vocab is None else vocab
         super().__init__(vocab)
         self.out_size = out_sz
@@ -138,6 +138,8 @@ class AllenWSDModel(Model, ABC):
         self.word_embeddings = word_embeddings
         if not finetune_embedder:
             self.word_embeddings.eval()
+            for p in self.word_embeddings.parameters():
+                p.requires_grad = False
         else:
             self.word_embeddings.train()
         self.loss = nn.CrossEntropyLoss()
@@ -150,20 +152,20 @@ class AllenWSDModel(Model, ABC):
         # WSDF1(label_vocab, mfs_vocab is not None, mfs_vocab)
         # self.label_vocab = label_vocab
 
-    def train(self, mode: bool = True):
-        self.training = mode
-        for module in self.children():
-            if module == self.word_embeddings and not self.finetune_embedder:
-                continue
-            module.train(mode)
-        return self
+    # def train(self, mode: bool = True):
+    #     self.training = mode
+    #     for module in self.children():
+    #         if module == self.word_embeddings and not self.finetune_embedder:
+    #             continue
+    #         module.train(mode)
+    #     return self
 
-    def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
-        params = list()
-        if self.finetune_embedder:
-            params.extend(self.word_embeddings.named_parameters())
-        params.extend(self.classifier.named_parameters())
-        yield from params
+    # def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
+    #     params = list()
+    #     if self.finetune_embedder:
+    #         params.extend(self.word_embeddings.named_parameters())
+    #     params.extend(self.classifier.named_parameters())
+    #     yield from params
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         return self.accuracy.get_metric(reset)
@@ -340,7 +342,7 @@ class AllenWSDModel(Model, ABC):
                     cache_instances=cache_instances,
                     pad_id=pad_id,
                     label_pad_id=label_pad_id,
-                    finetune_embedder=finetune_embedder, metric=metric, embedding_size=embedding_size)
+                    finetune_embedder=finetune_embedder, metric=metric, embedding_size=embedding_size, **kwargs)
         model.to(device)
         return model
 
@@ -366,9 +368,17 @@ class AllenBatchNormWsdModel(AllenWSDModel):
         self.classifier = nn.Linear(embedding_size, out_sz, bias=False)
         self.batchnorm = BatchNorm1d(embedding_size)
         self.linear = nn.Linear(embedding_size, embedding_size)
+        if "dropout" in kwargs:
+            self.dropout_prob = kwargs.pop("dropout")
+        else:
+            self.dropout_prob = 0.0
+        self.dropout = nn.Dropout(self.dropout_prob)
+
 
     def wsd_head(self, embeddings):
         if len(embeddings) > 1:
             embeddings = self.batchnorm(embeddings)
+
+        embeddings = self.dropout(embeddings)
         embeddings = swish(self.linear(embeddings))
         return self.classifier(embeddings)  # mask.unsqueeze(-1)
