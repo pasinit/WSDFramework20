@@ -65,15 +65,15 @@ def main(args):
     patience = training_config["patience"]
 
     if args.gradient_clipping is not None:
-        training_config["gradient_clipping"] = args.gradient_clipping
+        training_config["gradient_clipping"] = float(args.gradient_clipping)
     if args.learning_rate is not None:
-        training_config["learning_rate"] = args.learning_rate
+        training_config["learning_rate"] = float(args.learning_rate)
     if args.weight_decay is not None:
-        training_config["weight_decay"] = args.weight_decay
+        training_config["weight_decay"] = float(args.weight_decay)
     if args.dropout_1 is not None:
-        model_config["dropout_1"] = args.dropout_1
+        model_config["dropout_1"] = float(args.dropout_1)
     if args.dropout_2 is not None:
-        model_config["dropout_2"] = args.dropout_2
+        model_config["dropout_2"] = float(args.dropout_2)
     learning_rate = float(training_config["learning_rate"])
     weight_decay = float(training_config["weight_decay"])
     gradient_clipping = training_config.get("gradient_clipping", None)
