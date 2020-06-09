@@ -13,4 +13,4 @@ pip install .
 cd ../WSDFramework20
 pip3 install -r requirements.txt
 
-echo '[!!!!!!] Now download data from https://drive.google.com/open?id=12QgZ0LtXGIbsuYTeZF8DPWfdSiuHoCMz [!!!!!]'
+#echo '[!!!!!!] Now download data from https://drive.google.com/open?id=12QgZ0LtXGIbsuYTeZF8DPWfdSiuHoCMz [!!!!!]'
