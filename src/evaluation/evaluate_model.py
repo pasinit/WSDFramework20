@@ -148,9 +148,10 @@ def main(args):
     test_lang2name = data_config["test_names"]
     inventory_dir = data_config.get("inventory_dir", None)
     langs = data_config["langs"]
+    cpu = args.cpu
     sense_inventory = data_config["sense_inventory"]
     mfs_file = data_config.get("mfs_file", None)
-    device = model_config["device"]
+    device = "cpu" if cpu else "cuda" #model_config["device"]
     encoder_name = model_config["encoder_name"]
     output_path = os.path.join(outpath, wsd_model_name + "_" + encoder_name)
     if "checkpoint_path" in vars(args) and args.checkpoint_path is not None:
@@ -169,13 +170,14 @@ def main(args):
     test_dss = {lang: [get_allen_datasets(None,
                                           encoder_name, lemma2synsets,
                                           label_vocab, test_label_mapper, config["data"]["max_segments_in_batch"],
-                                          {lang: [tp]}, force_reload=True, serialize=False) for tp in test_paths]
+                                          {lang: [tp]}, force_reload=True, serialize=False,
+                                          device = torch.device(device)) for tp in test_paths]
                 for lang, test_paths in lang2test_paths.items()}
 
     metric = WSDF1(label_vocab, mfs_dictionary is not None, mfs_dictionary)
     dataset = list(test_dss.values())[0][0][0]
     model = get_model(model_config, len(label_vocab), dataset.pad_token_id, label_vocab.stoi["<pad>"],
-                      metric=metric)
+                      metric=metric, device=device)
     # if args.find_best is True:
     #     epoch = get_best_checkpoint(args.dev_set, reader, checkpoint_path, wsd_model_name,
     #                                 label_vocab, lemma2synsets, device_int,
@@ -239,6 +241,7 @@ if __name__ == "__main__":
     # parser.add_argument("--dev_set", default=None, type=str)
     parser.add_argument("--verbose", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
+    parser.add_argument("--cpu", action="store_true", default=False)
 
     args = parser.parse_args()
     main(args)
