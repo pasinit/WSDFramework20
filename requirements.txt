@@ -1,9 +1,10 @@
 numpy
 torch
 wandb
-allennlp==1.0.0rc4.dev20200505
+allennlp==1.0.0rc4
 transformers==2.8.0
 lxml
 pandas
 tabulate
 git+https://github.com/pasinit/nlp_tools.git
+wandb
