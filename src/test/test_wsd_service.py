@@ -13,9 +13,10 @@ def init_service():
         config = yaml.load(reader, Loader=yaml.FullLoader)
     trained_model_path = "/home/tommaso/dev/PycharmProjects/WSDframework/data4/models/en_semcor_wngt_bn/batchnorm_wsd_classifier_xlm-roberta-large/checkpoints/best.th"
     model_config = config["model"]
-    lang2inventory, _, label_vocab = get_data("bnoffsets", [], None)
+    lang2inventory, _, label_vocab = get_data("bnoffsets", config["data"]["langs"], None)
     pad_id = PretrainedTransformerMismatchedIndexer(model_config["encoder_name"])._tokenizer.pad_token_id
-    model = get_model(model_config, len(label_vocab),
+    model = get_model(model_config,
+                      len(label_vocab),
                       pad_id,
                       label_vocab.stoi["<pad>"],
                       device="cpu")
@@ -66,4 +67,4 @@ def interactive_test():
         except Exception as e:
             print(e)
 if __name__ == "__main__":
-    interactive_test()
+    test_wsd_service()
