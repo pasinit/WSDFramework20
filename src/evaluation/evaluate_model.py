@@ -1,136 +1,118 @@
+import os
 import subprocess
+from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import Dict, List
-from allennlp.data import Vocabulary
-from allennlp.data.iterators import BasicIterator, BucketIterator
-from allennlp.data.token_indexers import PretrainedBertIndexer
-from allennlp.predictors import SentenceTaggerPredictor
-from argparse import ArgumentParser
 
-from pandas import DataFrame
-from tqdm import tqdm
-
-from src.data.datasets import AllenWSDDatasetReader
-from src.models.neural_wsd_models import AllenWSDModel, WSDF1
 import torch
-
-import os
 import yaml
 
-# from src.training.wsd_trainer import get_token_indexer
-from src.utils.utils import get_token_indexer
+from allennlp.data import Vocabulary, DataLoader
+from allennlp.nn.util import move_to_device
+from nlp_tools.data_io.datasets import LabelVocabulary
+from pandas import DataFrame
+from tabulate import tabulate
+from tqdm import tqdm
+import pandas
+
+from src.data.dataset_utils import get_mapper, get_data, get_allen_datasets
+from src.models.neural_wsd_models import AllenWSDModel, WSDF1
+from src.utils.utils import get_model
 
 
-def evaluate(dataset_reader, dataset_path, model, output_path, label_vocab, use_mfs=False, mfs_vocab=None,
+def evaluate(data_loader, model, output_path, label_vocab, device_int, use_mfs=False, mfs_vocab=None,
              verbose=True, debug=False):
-    iterator = BasicIterator(
-        batch_size=64
-    )
-    # iterator = BucketIterator(
-    #     biggest_batch_first=False,
-    #     sorting_keys=[("tokens", "num_tokens")],
-    #     maximum_samples_per_batch=("tokens_length", max_segments_in_batch),
-    # )
     f1_computer = WSDF1(label_vocab, use_mfs, mfs_vocab)
-    predictor = SentenceTaggerPredictor(model, dataset_reader)
-    batches = [x for x in iterator._create_batches(dataset_reader.read(dataset_path), False)]
-    with open(output_path, "w") as writer, open(output_path.replace(".txt", ".mfs.txt"), "w") as mfs_writer, \
+    batch_generator = iter(data_loader)
+
+    with open(output_path, "w") as writer, \
+            open(output_path.replace(".txt", ".mfs.txt"), "w") as mfs_writer, \
             open(output_path.replace(".txt", ".mfs.info.txt"), "w") as mfs_info_writer:
-        bar = batches
+        bar = batch_generator
         if verbose:
-            bar = tqdm(batches)
-        debugwriter = open("/tmp/debug.txt", "w")
+            bar = tqdm(batch_generator)
+        debugwriter = open(output_path + ".debug.txt", "w")
         for batch in bar:
-            outputs = predictor.predict_batch_instance(batch.instances)
-            ids = [prediction["ids"] for prediction in outputs]
-            predictions = [prediction["full_predictions"] for prediction in outputs]
-            for i_ids, i_predictions, instance in zip(ids, predictions, batch):
-                i_predictions = [int(x) for x in i_predictions if x > 0.0]
-                i_labels = instance.fields["labels"].metadata
-                assert len(i_ids) == len(i_predictions)
-                lemmapos = instance.fields["labeled_lemmapos"]
-                f1_computer(lemmapos, i_predictions, i_labels, ids=instance.fields["ids"].metadata)
-                f1_computer.get_metric(False)
-                writer.write(
-                    "\n".join(["{} {}".format(id, label_vocab.itos[p]) for id, p in zip(i_ids, i_predictions)]))
-                writer.write("\n")
-                mfs_preds = [mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p] for
+            if device_int >= 0:
+                batch = move_to_device(batch, device_int)
+            outputs = model(**batch)
+            ids = [y for x in batch["ids"] for y in x if y is not None]
+            predictions = outputs["predictions"].tolist()
+            labels = [y for x in batch["labels"] for y in x if y != ""]
+            possible_labels = [y for x in batch["possible_labels"] for y in x]
+            lemmapos = [y for x in batch["labeled_lemmapos"] for y in x]
+            assert len(ids) == len(predictions) == len(labels) == len(possible_labels) == len(lemmapos)
+
+            f1_computer(lemmapos, predictions, labels, ids=ids)
+            f1_computer.get_metric(False)
+            writer.write(
+                "\n".join(["{} {}".format(id, label_vocab.itos[p]) for id, p in zip(ids, predictions)]))
+            writer.write("\n")
+            if mfs_vocab is not None:
+                mfs_preds = [mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
+                             for
                              lp, p in
-                             zip(lemmapos, i_predictions)]
+                             zip(lemmapos, predictions)]
                 mfs_writer.write(
-                    "\n".join(["{} {}".format(id, p) for id, p in zip(i_ids, mfs_preds)]))
+                    "\n".join(["{} {}".format(id, p) for id, p in zip(ids, mfs_preds)]))
                 mfs_writer.write("\n")
-                if debug:
-                    debugwriter.write(" ".join(x.text for x in instance.fields["tokens"]) + "\n")
-                    for id, lp, p, label, possible_labels in zip(i_ids, lemmapos, i_predictions, i_labels,
-                                                                 [[label_vocab.get_string(y) for y in x] for x in
-                                                                  instance.fields["possible_labels"]]):
-                        is_mfs = label_vocab.itos[p] == "<unk>"
+            if debug:
+                for id, lp, p, label, possible_labels in zip(ids, lemmapos, predictions, labels,
+                                                             [[label_vocab.get_string(y) for y in x] for x in
+                                                              possible_labels]):
+                    is_mfs = label_vocab.itos[p] == "<unk>"
+                    if mfs_vocab is not None:
                         pred = mfs_vocab.get(lp, "<unk>") if label_vocab.itos[p] == "<unk>" else label_vocab.itos[p]
-                        mfs_info_writer.write("{} {} {}\n".format(id, pred, "MFS" if is_mfs else ""))
-                        debugwriter.write(
-                            "{}\t{}\t{}\t{}\t{}\n".format(id, lp, pred, label, ", ".join(possible_labels)))
+                    else:
+                        pred = label_vocab.itos[p]
+                    mfs_info_writer.write("{} {} {}\n".format(id, pred, "MFS" if is_mfs else ""))
+                    # if pred not in label:
+                    debugwriter.write(
+                        "{}\t{}\t{}\t{}\t{}\n".format(id, lp, pred, label, ", ".join(possible_labels)))
         metric = f1_computer.get_metric(True)
-        debugwriter.close()
+        if debug:
+            debugwriter.close()
         return metric
 
 
-import pandas
-
-
-def evaluate_datasets(dataset_paths: List[str],
-                      dataset_reader: AllenWSDDatasetReader, checkpoint_path: str, model_name: str, label_vocab: Dict,
-                      lemma2synsets: Dict,
-                      device_int: int, mfs_dictionary: Dict,
-                      use_mfs: bool,
+def evaluate_datasets(model: AllenWSDModel,
+                      data_loaders: Dict[str, List[DataLoader]],
+                      test_names: Dict[str, List[str]],
+                      checkpoint_path: str,
+                      label_vocab: LabelVocabulary,
+                      device_int: int,
+                      mfs_dictionary: Dict,
                       output_path,
-                      padding,
                       verbose=True, debug=False,
-
                       ):
-    model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
-                                                          label_vocab,
-                                                          vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                          eval=True, cache_vectors=False,
-                                                          pad_token_id=padding, return_full_output=True)
     model.load_state_dict(
         torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
     model.eval()
     all_metrics = dict()
-    names = list()  # [dataset_path.split("/")[-1].split(".")[0] for dataset_path in dataset_paths]
+    names = list()
     lines = list()
-    if not verbose:
-        dataset_paths = tqdm(dataset_paths, desc="datasets_progress")
-    for dataset_path in dataset_paths:
-        name = dataset_path.split("/")[-1]  # .split(".")[0]
-        names.append(name)
-        metrics = evaluate(dataset_reader, dataset_path, model, os.path.join(output_path, name + ".predictions.txt"),
-                           label_vocab, use_mfs, mfs_dictionary, verbose=verbose, debug=debug)
-        all_metrics[name] = OrderedDict(
-            {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
-             "f1_mfs": metrics.get("f1_mfs", None)})
-        if verbose:
-            print("{}: precision: {}, recall: {}, f1: {}, precision_mfs: {}, recall_mfs: {}, f1_mfs:{}".format(name,
-                                                                                                               *[
-                                                                                                                   metrics.get(
-                                                                                                                       x,
-                                                                                                                       -1)
-                                                                                                                   for x
-                                                                                                                   in
-                                                                                                                   [
-                                                                                                                       "precision",
-                                                                                                                       "recall",
-                                                                                                                       "f1",
-                                                                                                                       "p_mfs",
-                                                                                                                       "recall_mfs",
-                                                                                                                       "f1_mfs"]]))
-        lines.append([metrics["precision"], metrics["recall"], metrics["f1"], metrics.get("f1_mfs", -1)])
+    # datasets = zip(data_loaders, test_names)
+    # if not verbose:
+    #     datasets = tqdm(datasets, desc="datasets_progress")
+    for lang, datasets in data_loaders.items():
+        t_names = test_names[lang]
+        for (data_loader, iterator), name in zip(datasets, t_names):
+            names.append(name)
+            metrics = evaluate(iterator, model, os.path.join(output_path, name + ".predictions.txt"),
+                               label_vocab, device_int, mfs_dictionary is not None, mfs_dictionary, verbose=verbose,
+                               debug=debug)
+            all_metrics[name] = OrderedDict(
+                {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
+                 "f1_mfs": metrics.get("f1_mfs", None)})
+            if verbose:
+                print(f"{name}: instances: {metrics['total']}, precision: {metrics['precision']}, recall: {metrics['recall']}, f1: {metrics['f1']}")
+            lines.append([metrics["total"],metrics["f1"]])
     print("SUMMARY:")
-    # d = DataFrame.from_dict(all_metrics).transpose()
-    d = DataFrame(lines, columns=["Precision", "Recall", "F1", "F1_MFS"], index=names)
-    with pandas.option_context('display.max_rows', None, 'display.max_columns', None, 'display.float_format',
-                               '{:0.3f}'.format):  # more options can be specified also
+    d = DataFrame(lines, columns=["instances","F1"], index=names)
+    with pandas.option_context('display.max_rows', None, 'display.max_columns',
+                               None, 'display.float_format', '{:0.3f}'.format):
         print(d.to_csv(sep="\t"))
+        print(tabulate(d))
 
 
 def to_scorer_format(path):
@@ -161,71 +143,71 @@ def main(args):
     data_config = config["data"]
     model_config = config["model"]
     outpath = data_config["outpath"]
+    wsd_model_name = model_config["wsd_model_name"]
     test_data_root = data_config["test_data_root"]
-    train_data_root = data_config["train_data_root"]
-    test_names = data_config["test_names"]
+    test_lang2name = data_config["test_names"]
+    inventory_dir = data_config.get("inventory_dir", None)
     langs = data_config["langs"]
+    cpu = args.cpu
     sense_inventory = data_config["sense_inventory"]
-    gold_id_separator = data_config["gold_id_separator"]
-    label_from_training = data_config["label_from_training"]
-    # max_sentence_token = data_config["max_sentence_token"]
-    # max_segments_in_batch = data_config["max_segments_in_batch"]
     mfs_file = data_config.get("mfs_file", None)
-    # sliding_window = data_config["sliding_window"]
-    device = model_config["device"]
-    model_name = model_config["model_name"]
-    checkpoint_path = args.checkpoint_path
+    device = "cpu" if cpu else "cuda" #model_config["device"]
+    encoder_name = model_config["encoder_name"]
+    output_path = os.path.join(outpath, wsd_model_name + "_" + encoder_name)
+    if "checkpoint_path" in vars(args) and args.checkpoint_path is not None:
+        checkpoint_path = args.checkpoint_path
+    else:
+        checkpoint_path = os.path.join(output_path, "checkpoints", "best.th")
+    if not os.path.exists(checkpoint_path):
+        raise RuntimeError("path for checkpoints does not exist", checkpoint_path)
     device_int = 0 if device == "cuda" else -1
-    if args.test_path is None:
-        test_paths = [os.path.join(test_data_root, name, name + ".data.xml") for name in test_names]
-    else:
-        if len(args.test_path) == 1 and os.path.isdir(args.test_path[0]):
-            test_paths = [os.path.join(args.test_path[0], p) for p in os.listdir(args.test_path[0]) if "data.xml" in p]
-        else:
-            test_paths = args.test_path
-    training_paths = train_data_root  # "{}/SemCor/semcor.data.xml".format(train_data_root)
-    # outpath = os.path.join(outpath, model_name)
-    token_indexer, padding = get_token_indexer(model_name)
+    lang2test_paths = {lang: [os.path.join(test_data_root, name, name + ".data.xml") for name in names] for lang, names
+                       in test_lang2name.items()}
 
-    if label_from_training:
-        dataset_builder = AllenWSDDatasetReader.get_dataset_with_labels_from_data
-    elif sense_inventory == "wnoffsets":
-        dataset_builder = AllenWSDDatasetReader.get_wnoffsets_dataset
-    elif sense_inventory == "sensekeys":
-        dataset_builder = AllenWSDDatasetReader.get_sensekey_dataset
-    elif sense_inventory == "bnoffsets":
-        dataset_builder = AllenWSDDatasetReader.get_bnoffsets_dataset
-    else:
-        raise RuntimeError(
-            "%s sense_inventory has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnoffsets}" % (
-                sense_inventory))
+    test_label_mapper = get_mapper(lang2test_paths, sense_inventory)
+    lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, inventory_dir=inventory_dir)
 
-    reader, lemma2synsets, label_vocab, mfs_dictionary = dataset_builder({"tokens": token_indexer},
-                                                                         sliding_window=35,
-                                                                         max_sentence_token=35,
-                                                                         gold_id_separator=gold_id_separator,
-                                                                         langs=langs,
-                                                                         training_data_xmls=training_paths,
-                                                                         sense_inventory=sense_inventory,
-                                                                         mfs_file=mfs_file, )
-    if args.find_best is True:
-        epoch = get_best_checkpoint(args.dev_set, reader, checkpoint_path, model_name,
-                                    label_vocab, lemma2synsets, device_int,
-                                    mfs_dictionary, args.output_path, mfs_dictionary is not None,
-                                    verbose=verbose
-                                    )
-        checkpoint_path = os.path.join(checkpoint_path, "model_state_epoch_{}.th".format(epoch))
-        print("best checpoint: {}".format(checkpoint_path))
-    evaluate_datasets(test_paths, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
-                      mfs_dictionary, mfs_dictionary is not None, args.output_path, padding, verbose=verbose, debug=debug)
+    test_dss = {lang: [get_allen_datasets(None,
+                                          encoder_name, lemma2synsets,
+                                          label_vocab, test_label_mapper, config["data"]["max_segments_in_batch"],
+                                          {lang: [tp]}, force_reload=True, serialize=False,
+                                          device = torch.device(device)) for tp in test_paths]
+                for lang, test_paths in lang2test_paths.items()}
+
+    metric = WSDF1(label_vocab, mfs_dictionary is not None, mfs_dictionary)
+    dataset = list(test_dss.values())[0][0][0]
+    model = get_model(model_config, len(label_vocab), dataset.pad_token_id, label_vocab.stoi["<pad>"],
+                      metric=metric, device=device)
+    # if args.find_best is True:
+    #     epoch = get_best_checkpoint(args.dev_set, reader, checkpoint_path, wsd_model_name,
+    #                                 label_vocab, lemma2synsets, device_int,
+    #                                 mfs_dictionary, args.output_path, mfs_dictionary is not None,
+    #                                 verbose=verbose
+    #                                 )
+    #     checkpoint_path = os.path.join(checkpoint_path, "model_state_epoch_{}.th".format(epoch))
+    #     print("best checpoint: {}".format(checkpoint_path))
+    # test_dss = [get_bucket_iterator(td, 2000) for td in test_dss]
+    if "output_path" in vars(args) and args.output_path is not None:
+        eval_path = args.output_path
+    else:
+        eval_path = os.path.join(output_path, "evaluation/")
+    if not os.path.exists(eval_path):
+        os.makedirs(eval_path)
+
+    evaluate_datasets(model, test_dss, test_lang2name, checkpoint_path,
+                      label_vocab, device_int,
+                      mfs_dictionary,
+                      eval_path,
+                      verbose=verbose,
+                      debug=debug)
 
 
 def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, lemma2synsets, device_int,
                         mfs_dictionary, output_path, use_mfs, metric_to_track="f1_mfs", verbose=True):
     model = AllenWSDModel.get_transformer_based_wsd_model(model_name, len(label_vocab), lemma2synsets, device_int,
-                                                   label_vocab,
-                                                   vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
-                                                   eval=True, finetune_embedder=False, return_full_output=True)
+                                                          label_vocab,
+                                                          vocab=Vocabulary(), mfs_dictionary=mfs_dictionary,
+                                                          eval=True, finetune_embedder=False, return_full_output=True)
     num_checkpoints = len([x for x in os.listdir(checkpoint_path) if "model_state_epoch" in x])
     best_epoch = -1
     best_metric = -1
@@ -239,8 +221,7 @@ def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, 
                        map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
         model.eval()
         name = path.split("/")[-1]
-        metrics = evaluate(reader, path, model,
-                           os.path.join(output_path, name + ".predictions.txt"),
+        metrics = evaluate(reader, path, model, os.path.join(output_path, name + ".predictions.txt"),
                            label_vocab, use_mfs, mfs_dictionary, verbose=verbose)
         val = metrics[metric_to_track]
         if val > best_metric:
@@ -253,13 +234,14 @@ def get_best_checkpoint(path, reader, checkpoint_path, model_name, label_vocab, 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--checkpoint_path", required=True)
-    parser.add_argument("--output_path", required=True)
-    parser.add_argument("--test_path", default=None, nargs="+")
-    parser.add_argument("--find_best", action="store_true", default=False)
-    parser.add_argument("--dev_set", default=None, type=str)
+    parser.add_argument("--checkpoint_path", default=None)
+    parser.add_argument("--output_path", default=None)
+    # parser.add_argument("--test_path", default=None, nargs="+")
+    # parser.add_argument("--find_best", action="store_true", default=False)
+    # parser.add_argument("--dev_set", default=None, type=str)
     parser.add_argument("--verbose", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
+    parser.add_argument("--cpu", action="store_true", default=False)
 
     args = parser.parse_args()
     main(args)

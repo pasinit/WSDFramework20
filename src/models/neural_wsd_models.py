@@ -1,164 +1,21 @@
-import itertools
-from abc import ABC
-from typing import Dict, Iterator, Any, Callable, List
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Iterator, Tuple
 
 import torch
+from allennlp.data import Vocabulary
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder
 from allennlp.modules.text_field_embedders import BasicTextFieldEmbedder
-from allennlp.modules.token_embedders import PretrainedBertEmbedder
-from allennlp.modules.token_embedders import PretrainedTransformerEmbedder
 from allennlp.training.metrics import Metric
-from allennlp_mods.callbacks import OutputWriter
-from nlp_models.huggingface_wrappers import GenericHuggingfaceWrapper
+from nlp_tools.allennlp_training_callbacks.callbacks import OutputWriter
+from nlp_tools.data_io.datasets import LabelVocabulary
+from nlp_tools.nlp_models.multilayer_pretrained_transformer_mismatched_embedder import \
+    MultilayerPretrainedTransformerMismatchedEmbedder
 from torch import nn
-from torch.nn import Module, Linear, Parameter
-
-from src.data.data_structures import Lemma2Synsets
-from src.data.datasets import Vocabulary, LabelVocabulary
-
-
-class WSDClassifier(ABC):
-    def __init__(self, num_classes, class2synset, lemmapos2synsets, device, **kwargs):
-        self.num_classes = num_classes
-        self.lemmapos2synsets = lemmapos2synsets
-        self.class2synset = class2synset
-        self.device = device
-
-    def __call__(self, hidden_states, input_lemmapos, **kwargs):
-        return self.classify(hidden_states, input_lemmapos, **kwargs)
-
-    def classify(self, hidden_states, input_lemmapos, **kwargs):
-        pass
-
-    def get_lemmapos_synset_scores(self, probabilities, input_lemmapos):
-        """
-        :param probabilities: a tensor (batch x max_len x num_classes)
-        :param input_lemmapos: a list that is parallel to the tensor probabilities
-        :return: a list parallel to probabilities where in position i,j
-         contains a list of pairs containing all the synsets corresponding to input_lemmapos[i,j] following the order in
-         self.lemmapos2synsets together with their scores.
-        """
-        lemmapos_scores = list()
-        mask = list()
-        for i in range(len(input_lemmapos)):
-            lemmapos_scores.append(list())
-            mask.append(list())
-            for j in range(len(input_lemmapos[i])):
-                # sum = torch.sum(probabilities[i][j])
-                # if sum == 0.0:  # then it is masked
-                #     lemmapos_scores[-1].append(list())
-                #     lemmapos_synsets[-1].append(list())
-                lemmapos = input_lemmapos[i][j]
-                synsets = self.lemmapos2synsets.get(lemmapos, None)
-                zero_mask = torch.zeros_like(probabilities[0][0])
-                if synsets is not None:
-                    classes = [self.class2synset[s] for s in synsets if s in self.class2synset.stoi]
-                    classes_scores = probabilities[i][j][classes]
-                    zero_mask[classes] = 1.0
-                    mask[-1].append(zero_mask)
-                    lemmapos_scores[-1].append(list(zip(synsets, [s.item() for s in classes_scores])))
-
-                else:
-                    lemmapos_scores[-1].append(list())
-                    mask[-1].append(zero_mask)
-        return probabilities, lemmapos_scores, mask
-
-
-class WSDEncoder(ABC, Module):
-    def __init__(self, **kwargs):
-        super().__init__()
-
-
-class WSDModel(Module):
-    def __init__(self, encoder: WSDEncoder, classifier: WSDClassifier, device, encoder_trainable=False,
-                 classifier_trainable=True):
-        super().__init__()
-        self.encoder: WSDEncoder = encoder.to(device)
-        self.classifier: WSDClassifier = classifier
-        self.add_module("encoder", self.encoder)
-        self.encoder_trainable = encoder_trainable
-        self.classifier_trainable = classifier_trainable
-        if isinstance(self.classifier, Module):
-            self.add_module("classifier", self.classifier)
-
-    def forward(self, input, input_lemmapos, **kwargs):
-        if not self.encoder_trainable:
-            with torch.no_grad():
-                encoded_states = self.encoder(input, **kwargs)
-        else:
-            encoded_states = self.encoder(input, **kwargs)
-        if not self.classifier_trainable:
-            with torch.no_grad():
-                predictions = self.classifier(encoded_states, input_lemmapos)
-        else:
-            predictions = self.classifier(encoded_states, input_lemmapos)
-        return predictions
-
-    def set_encoder_trainable(self):
-        self.encoder.train()
-
-    def set_classifier_trainable(self):
-        self.classifier.train()
-
-    def freeze_encoder_weights(self):
-        self.encoder.eval()
-
-    def freeze_classifier_weights(self):
-        self.classifier.eval()
-
-    def predict(self, input, input_lemmapos, **kwargs):
-        with torch.no_grad():
-            self.forward(input, input_lemmapos, **kwargs)
-
-
-class FeedForwardClassifier(WSDClassifier, Module):
-    def __init__(self, input_dim, num_classes, vocabulary: Vocabulary, lemmapos2synsets, device, **kwargs):
-        WSDClassifier.__init__(self, num_classes, vocabulary, lemmapos2synsets, device, **kwargs)
-        Module.__init__(self)
-        self.input_dium = input_dim
-        self.classifier = Linear(input_dim, num_classes).to(device)
-
-    def classify(self, hidden_states, input_lemmapos, **kwargs):
-        probabilities = self.classifier(hidden_states)
-        return self.get_lemmapos_synset_scores(probabilities, input_lemmapos)
-
-
-class TransformerWSDEncoder(WSDEncoder):
-    def __init__(self, model_name, device, **kwargs):
-        super().__init__(**kwargs)
-        self.model: GenericHuggingfaceWrapper = GenericHuggingfaceWrapper(model_name, device).eval()
-        self.add_module("transformer", self.model)
-
-    def forward(self, input, **kwargs):
-        out, _ = self.model.sentences_forward(input)
-        return out["hidden_states"]
-
-
-class TransformerFFWSDModel(WSDModel):
-    def __init__(self, model_name, device, hidden_size, output_size, vocabulary: Vocabulary, lemma2synsets: Dict,
-                 encoder_trainable=False,
-                 classifier_trainable=True):
-        encoder = TransformerWSDEncoder(model_name, device)
-        classifier = FeedForwardClassifier(hidden_size, output_size, vocabulary, lemma2synsets, device)
-        self.device = device
-        super().__init__(encoder, classifier, device, encoder_trainable=encoder_trainable,
-                         classifier_trainable=classifier_trainable)
-
-    def parameters(self, recurse: bool = ...) -> Iterator[Parameter]:
-        enc_params = None
-        clas_params = None
-        if self.encoder_trainable:
-            enc_params = self.encoder.parameters()
-        if self.classifier_trainable:
-            clas_params = self.classifier.parameters()
-        if enc_params and clas_params:
-            return itertools.chain(enc_params, clas_params)
-        if enc_params:
-            return enc_params
-        if clas_params:
-            return clas_params
-        return iter(())
+from torch.nn import Parameter
+from torch.nn.modules.batchnorm import BatchNorm1d
+from torch.nn.modules.container import Sequential
+from transformers.activations import swish
 
 
 class WSDOutputWriter(OutputWriter):
@@ -167,7 +24,7 @@ class WSDOutputWriter(OutputWriter):
 
     def write(self, outs):
         predictions = outs["predictions"].flatten().tolist()
-        golds = [x for y in outs["str_labels"] for x in y]
+        golds = [x for y in outs["str_labels"] for x in y if x != ""]
         ids = [x for y in outs["ids"] for x in y]
         assert len(predictions) == len(golds)
         for i in range(len(predictions)):  # p, l in zip(predictions, labels):
@@ -259,50 +116,59 @@ class WSDF1(Metric):
         return ret_dict
 
 
-class AllenWSDModel(Model):
-    def __init__(self, lemmapos2classes: Lemma2Synsets, word_embeddings: TextFieldEmbedder, out_sz, label_vocab,
-                 vocab=None, merge_fun: Callable = lambda emb: torch.mean(emb, 0), mfs_vocab: Dict[str, str] = None,
-                 return_full_output=False, finetune_embedder=False, cache_instances=False, pad_id=0):
+@Model.register("wsd_classifier")
+class AllenWSDModel(Model, ABC):
+    def __init__(self,
+                 word_embeddings: TextFieldEmbedder,
+                 out_sz,
+                 vocab=None,
+                 return_full_output=False,
+                 finetune_embedder=False,
+                 cache_instances=False,
+                 pad_id=0,
+                 label_pad_id=0,
+                 metric: Metric = None,
+                 embedding_size: int = None, **kwargs):
         vocab = Vocabulary() if vocab is None else vocab
         super().__init__(vocab)
+        self.out_size = out_sz
+        self.embedding_size = embedding_size
+        self.label_pad_id = label_pad_id
         self.finetune_embedder = finetune_embedder
         self.word_embeddings = word_embeddings
         if not finetune_embedder:
             self.word_embeddings.eval()
-        self.projection = nn.Linear(self.word_embeddings.get_output_dim(), out_sz)
+            for p in self.word_embeddings.parameters():
+                p.requires_grad = False
+        else:
+            self.word_embeddings.train()
         self.loss = nn.CrossEntropyLoss()
-        self.merge_fun = merge_fun
         self.pad_id = pad_id
-        self.label_vocab = label_vocab
         self.return_full_output = return_full_output
-        self.lemma2classes = lemmapos2classes
         self.cache_instances = cache_instances
         self.cache = dict()
-        self.accuracy = WSDF1(label_vocab, mfs_vocab is not None, mfs_vocab)
+        self.accuracy = metric
+
+        # WSDF1(label_vocab, mfs_vocab is not None, mfs_vocab)
+        # self.label_vocab = label_vocab
+
+    # def train(self, mode: bool = True):
+    #     self.training = mode
+    #     for module in self.children():
+    #         if module == self.word_embeddings and not self.finetune_embedder:
+    #             continue
+    #         module.train(mode)
+    #     return self
+
+    # def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
+    #     params = list()
+    #     if self.finetune_embedder:
+    #         params.extend(self.word_embeddings.named_parameters())
+    #     params.extend(self.classifier.named_parameters())
+    #     yield from params
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         return self.accuracy.get_metric(reset)
-
-    def get_token_level_embeddings(self, embeddings, offsets):
-        """
-        :param embeddings:
-        :param offsets: list of offsets where each original token **ends** in the list of subtokens.
-        :return:
-        """
-        token_level_embeddings = torch.zeros(offsets.shape + embeddings.shape[-1:]).to(embeddings.device)
-        for batch_i in range(len(offsets)):
-            batch_offset = offsets[batch_i]
-            batch_embeddings = embeddings[batch_i]
-            start_offset = 1
-            for o_j in range(len(batch_offset)):
-                if batch_offset[o_j] == self.pad_id:
-                    break
-                end_offset = batch_offset[o_j] + 1
-                embeddings_to_merge = batch_embeddings[start_offset:end_offset]
-                start_offset = batch_offset[o_j] + 1
-                token_level_emb = self.merge_fun(embeddings_to_merge)
-                token_level_embeddings[batch_i, o_j] = token_level_emb
-        return token_level_embeddings
 
     def get_embeddings_from_cache(self, tokens, mask, instance_ids):
         to_compute = [any(x not in self.cache for x in batch_instance_id) for batch_instance_id in instance_ids]
@@ -312,27 +178,23 @@ class AllenWSDModel(Model):
             all_embeddings = list()
             for k, batch_instance_id in enumerate(instance_ids):
                 embeddings = [self.cache[instance_id] for instance_id in batch_instance_id]
-                all_embeddings.append(torch.stack(embeddings, 0).to(self.projection.weight.device))
+                all_embeddings.append(torch.stack(embeddings, 0).to(self.classifier.weight.device))
             return torch.cat(all_embeddings, 0)
-        tokens = {"tokens": tokens["tokens"][indices_to_compute],
-                  "tokens-offsets": tokens["tokens-offsets"][indices_to_compute],
-                  "tokens-type-ids": tokens["tokens-type-ids"][indices_to_compute],
-                  "mask": tokens["mask"][indices_to_compute]}
         mask_to_compute = mask[indices_to_compute]
-        embeddings = self.word_embeddings(tokens, **{"token_type_ids": tokens["tokens-type-ids"]})
-        embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
+        embeddings = self.word_embeddings(tokens)
 
         retrieved_embedding_mask = mask_to_compute != 0
+        # if retrieved_embedding_mask.shape[1] + 2 == embeddings.shape[1]:
+        #     embeddings = embeddings[:, 1:-1]
         embeddings = embeddings[retrieved_embedding_mask]
-        self.cache.update(dict(zip([x for y in instance_ids for x in y], embeddings.cpu())))
+        self.cache.update(dict(zip([x for y in instance_ids for x in y], embeddings.detach().cpu())))
         return embeddings
 
-    def train(self, mode: bool = ...):
-        self.projection.train()
-        self.training = mode
+    def get_embeddings(self, tokens, mask=None, instance_ids=None):
 
-    def get_embeddings(self, tokens, mask, instance_ids):
-        retrieved_embedding_mask = mask != 0
+        retrieved_embedding_mask = None
+        if mask is not None:
+            retrieved_embedding_mask = mask != 0
         if not self.training:
             embeddings = self.word_embeddings(tokens)
         elif not self.finetune_embedder:
@@ -343,36 +205,81 @@ class AllenWSDModel(Model):
                 return self.get_embeddings_from_cache(tokens, mask, instance_ids), retrieved_embedding_mask
         else:
             embeddings = self.word_embeddings(tokens)
-        embeddings = self.get_token_level_embeddings(embeddings, tokens["tokens-offsets"])
-        masked_embeddings = embeddings[retrieved_embedding_mask]
-        embeddings = masked_embeddings
+        if retrieved_embedding_mask is not None:
+            masked_embeddings = embeddings[retrieved_embedding_mask]
+            embeddings = masked_embeddings
+        else:
+            embeddings = embeddings.view(-1, embeddings.shape[-1])
 
         return embeddings, retrieved_embedding_mask
 
-    def forward(self, tokens: Dict[str, torch.Tensor], instance_ids: List[str],
-                ids: Any, words, lemmapos, label_ids: torch.Tensor,
-                possible_labels, labeled_token_indices, labeled_lemmapos, labels, cache_instance_ids) -> torch.Tensor:
-        mask = (label_ids != self.label_vocab["<pad>"]).float().to(tokens["tokens"].device)
+    @abstractmethod
+    def wsd_head(self, embeddings):
+        pass
+
+    def predict(self, tokens: Dict[str, torch.Tensor], tokens_to_disambiguate: torch.Tensor = None):
+        """
+        :param tokens:
+        :param tokens_to_disambiguate: tensor having 0 for those positions which should not be disambiguated and 1
+        in those positions that we want to disambiguate.
+        :return: a list containing the logits for those thones that had to be disambiguated.
+        """
+        embeddings, _ = self.get_embeddings(tokens, tokens_to_disambiguate, None)
+        logits = self.wsd_head(embeddings).tolist()
+        if tokens_to_disambiguate is not None:
+            output = list()
+            for mask in tokens_to_disambiguate:
+                output.append([logits.pop() for _ in range(sum(mask))])
+            return output
+        return logits
+
+    def forward(self, tokens: Dict[str, torch.Tensor],
+                possible_labels=None,
+                ids: Any = None,
+                label_ids: torch.Tensor = None,
+                labeled_lemmapos=None,
+                labels=None,
+                cache_instance_ids=None,
+                compute_accuracy=True,
+                compute_loss=True,
+                **kwargs) -> torch.Tensor:
+        if label_ids is not None:
+            mask = (label_ids != self.label_pad_id).float().to(tokens["tokens"]["token_ids"].device)
+        else:
+            mask = None
 
         embeddings, retrieved_embedding_mask = self.get_embeddings(tokens, mask, cache_instance_ids)
-        labeled_logits = self.projection(embeddings)  # * mask.unsqueeze(-1)
-        target_labels = label_ids[retrieved_embedding_mask]
-        flatten_labels = [x for y in labels for x in y]
-        possible_labels = [x for y in possible_labels for x in y]
-        possible_classes_mask = torch.zeros_like(labeled_logits)  # .to(class_logits.device)
-        for i, ith_lp in enumerate(possible_labels):
-            possible_classes_mask[i][possible_labels[i]] = 1
-            possible_classes_mask[:, 0] = 0
-        labeled_logits = labeled_logits * possible_classes_mask
+        labeled_logits = self.wsd_head(embeddings)
+
         predictions = None
 
-        if not self.training:
-            predictions = self.get_predictions(labeled_logits)
+        if possible_labels is not None:
+            possible_labels = [x for y in possible_labels for x in y]
+            possible_classes_mask = torch.zeros_like(labeled_logits)
+            for i, ith_lp in enumerate(possible_labels):
+                possible_classes_mask[i][possible_labels[i]] = 1
+            possible_classes_mask[:, 0] = 0
+            masked_labeled_logits = labeled_logits * possible_classes_mask
+        else:
+            masked_labeled_logits = labeled_logits
+        if not self.training and compute_accuracy:
+            assert labeled_lemmapos is not None and labels is not None
+            flatten_labels = [x for y in labels for x in y if x != ""]
+
+            predictions = self.get_predictions(masked_labeled_logits)
             self.accuracy([x for y in labeled_lemmapos for x in y], predictions.tolist(), flatten_labels)
-        output = {"class_logits": labeled_logits, "all_logits": labeled_logits, "predictions": predictions,
-                  "labels": labels, "all_labels": label_ids, "str_labels": labels,
-                  "ids": [[x for x in i if x is not None] for i in ids], "loss":
-                      self.loss(labeled_logits, target_labels)}
+        loss = None
+        if compute_loss:
+            target_labels = label_ids[retrieved_embedding_mask]
+            loss = self.loss(labeled_logits, target_labels)
+        output = {"class_logits": masked_labeled_logits,
+                  "all_logits": labeled_logits,
+                  "predictions": predictions,
+                  "labels": labels,
+                  "all_labels": label_ids,
+                  "str_labels": labels,
+                  "ids": [[x for x in i if x is not None] for i in ids] if ids is not None else None,
+                  "loss": loss}
         if self.return_full_output:
             full_labeled_logits, full_predictions = self.reconstruct_full_output(retrieved_embedding_mask,
                                                                                  labeled_logits,
@@ -404,49 +311,80 @@ class AllenWSDModel(Model):
             predictions.append(torch.argmax(ll, -1))
         return torch.stack(predictions)
 
-    @staticmethod
-    def get_transformer_based_wsd_model(model_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
-                                        pad_token_id=0,
-                                        mfs_dictionary=None,
+    @classmethod
+    def get_transformer_based_wsd_model(cls, encoder_name,
+                                        out_size,
+                                        device,
+                                        pad_id,
+                                        label_pad_id,
+                                        layers_to_use=(-4, -3, -2, -1),
                                         vocab=None,
                                         return_full_output=False,
-                                        eval=False, finetune_embedder=False, cache_vectors=False):
+                                        finetune_embedder=False,
+                                        cache_instances=False,
+                                        model_path=None,
+                                        metric=None, **kwargs):
         vocab = Vocabulary() if vocab is None else vocab
-        text_embedder = PretrainedTransformerEmbedder(pretrained_model=model_name,
-                                                      top_layer_only=True,  # conserve memory
-                                                      requires_grad=not eval and finetune_embedder,
-                                                      pad_token_id=pad_token_id)
-        # for param in text_embedder.parameters():
-        #     param.requires_grad = finetune_embedder and not eval
-        word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder},
-                                                                    # we'll be ignoring masks so we'll need to set this to True
-                                                                    allow_unmatched_keys=True)
-        str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
-        word_embeddings.to(str_device)
-        model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
-                              return_full_output=return_full_output, cache_instances=cache_vectors, pad_id=pad_token_id)
-        model.to(str_device)
+        if encoder_name.lower() == "nhs":
+            encoder_name = "bert-base-multilingual-cased"
+        text_embedder = MultilayerPretrainedTransformerMismatchedEmbedder(encoder_name, layers_to_use)
+        embedding_size = text_embedder.get_output_dim()
+
+        if model_path is not None:
+            state_dict = torch.load(model_path)
+            updated_state_dict = {k.replace("bert.", "model."): v for k, v in state_dict.items()}
+            text_embedder.load_state_dict(updated_state_dict, strict=False)
+
+        word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder})
+        model = cls(word_embeddings=word_embeddings,
+                    out_sz=out_size, vocab=vocab,
+                    return_full_output=return_full_output,
+                    cache_instances=cache_instances,
+                    pad_id=pad_id,
+                    label_pad_id=label_pad_id,
+                    finetune_embedder=finetune_embedder, metric=metric, embedding_size=embedding_size, **kwargs)
+        model.to(device)
         return model
 
-    # @staticmethod
-    # def get_bert_based_wsd_model(bert_name, out_size, lemma2synsets: Lemma2Synsets, device, label_vocab,
-    #                              mfs_dictionary=None,
-    #                              vocab=None,
-    #                              return_full_output=False,
-    #                              eval=False, finetune_embedder=False, cache_vectors=False):
-    #
-    #     vocab = Vocabulary() if vocab is None else vocab
-    #     bert_embedder = PretrainedBertEmbedder(
-    #         pretrained_model=bert_name,
-    #         top_layer_only=True,  # conserve memory
-    #         requires_grad=not eval and finetune_embedder
-    #     )
-    #     word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": bert_embedder},
-    #                                                                 # we'll be ignoring masks so we'll need to set this to True
-    #                                                                 allow_unmatched_keys=True)
-    #     str_device = "cuda:{}".format(device) if device >= 0 else "cpu"
-    #     word_embeddings.to(str_device)
-    #     model = AllenWSDModel(lemma2synsets, word_embeddings, out_size, label_vocab, vocab, mfs_vocab=mfs_dictionary,
-    #                           return_full_output=return_full_output, cache_instances=cache_vectors)
-    #     model.to(str_device)
-    #     return model
+
+@Model.register("ff_wsd_classifier")
+class AllenFFWsdModel(AllenWSDModel):
+    def __init__(self, word_embeddings: TextFieldEmbedder, out_sz, embedding_size,
+                 **kwargs):
+        super().__init__(word_embeddings, out_sz, **kwargs)
+        self.dropout = nn.Dropout(0.5)
+        self.classifier = nn.Linear(embedding_size, out_sz, bias=False)
+        self.head = Sequential(self.dropout, self.classifier)
+
+    def wsd_head(self, embeddings):
+        return self.head(embeddings)
+
+
+@Model.register("batchnorm_wsd_classifier")
+class AllenBatchNormWsdModel(AllenWSDModel):
+    def __init__(self, word_embeddings: TextFieldEmbedder,
+                 out_sz, embedding_size, **kwargs):
+        super().__init__(word_embeddings, out_sz, **kwargs)
+        self.classifier = nn.Linear(embedding_size, out_sz, bias=False)
+        self.batchnorm = BatchNorm1d(embedding_size)
+        self.linear = nn.Linear(embedding_size, embedding_size)
+        if "dropout_1" in kwargs:
+            self.dropout_prob_1 = kwargs.pop("dropout_1")
+        else:
+            self.dropout_prob_1 = 0.0
+        if "dropout_2" in kwargs:
+            self.dropout_prob_2 = kwargs.pop("dropout_2")
+        else:
+            self.dropout_prob_2 = 0.0
+        self.dropout_1 = nn.Dropout(self.dropout_prob_2)
+        self.dropout_2 = nn.Dropout(self.dropout_prob_2)
+
+
+    def wsd_head(self, embeddings):
+        embeddings = self.dropout_1(embeddings)
+        if len(embeddings) > 1:
+            embeddings = self.batchnorm(embeddings)
+
+        embeddings = self.dropout_2(embeddings)
+        embeddings = swish(self.linear(embeddings))
+        return self.classifier(embeddings)  # mask.unsqueeze(-1)

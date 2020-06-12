@@ -19,3 +19,14 @@ data2
 data_bkp
 data3
 data/
+venv
+data4
+logs
+wsd_framework_venv/
+config
+.config
+wsdframework_data.tar.gz
+data5
+sample_en
+sweep.i97op0ma.txt
+sweep.*
