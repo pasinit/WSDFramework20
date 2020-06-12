@@ -10,7 +10,7 @@ Codice e dati per il framework2.0 di WSD
 If you have cuda 10.2 just type
 - ```conda install pytorch torchvision -c pytorch```
 
-Otherwise, refer to pytorch website to select the right version.
+Otherwise, refer to pytorch website to select the right version https://pytorch.org/get-started/locally/.
 ``` bash
 cd WSDFramework20
 pip install -r requirements.txt
