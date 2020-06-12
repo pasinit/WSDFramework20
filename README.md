@@ -13,5 +13,6 @@ If you have cuda 10.2 just type
 Otherwise, refer to pytorch website to select the right version.
 - cd WSDFramework20
 - pip install -r requirements.txt
+- pip install git+https://github.com/tommy9114/nlp_resources
 - wandb init
 - done!
