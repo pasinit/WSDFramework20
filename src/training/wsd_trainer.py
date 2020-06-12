@@ -66,6 +66,8 @@ def main(args):
 
     if args.gradient_clipping is not None:
         training_config["gradient_clipping"] = float(args.gradient_clipping)
+        if training_config["gradient_clipping"] == 0.0:
+            training_config["gradient_clipping"] = None
     if args.learning_rate is not None:
         training_config["learning_rate"] = float(args.learning_rate)
     if args.weight_decay is not None:
@@ -74,6 +76,8 @@ def main(args):
         model_config["dropout_1"] = float(args.dropout_1)
     if args.dropout_2 is not None:
         model_config["dropout_2"] = float(args.dropout_2)
+    print(training_config)
+    print(model_config)
     learning_rate = float(training_config["learning_rate"])
     weight_decay = float(training_config["weight_decay"])
     gradient_clipping = training_config.get("gradient_clipping", None)
