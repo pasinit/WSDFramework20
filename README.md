@@ -11,8 +11,9 @@ If you have cuda 10.2 just type
 - ```conda install pytorch torchvision -c pytorch```
 
 Otherwise, refer to pytorch website to select the right version.
-- cd WSDFramework20
-- pip install -r requirements.txt
-- pip install git+https://github.com/tommy9114/nlp_resources
-- wandb init
-- done!
+``` bash
+cd WSDFramework20
+pip install -r requirements.txt
+pip install git+https://github.com/tommy9114/nlp_resources
+wandb init
+```
