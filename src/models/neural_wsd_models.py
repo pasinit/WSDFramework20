@@ -16,8 +16,8 @@ from torch.nn import Parameter
 from torch.nn.modules.batchnorm import BatchNorm1d
 from torch.nn.modules.container import Sequential
 from transformers.activations import swish
-
-
+import os
+import numpy as np
 class WSDOutputWriter(OutputWriter):
     def __init__(self, output_file, labeldict):
         super().__init__(output_file, labeldict)
@@ -147,11 +147,20 @@ class AllenWSDModel(Model, ABC):
         self.return_full_output = return_full_output
         self.cache_instances = cache_instances
         self.cache = dict()
+        self.cache_file = kwargs.get("cache_file", None)
         self.accuracy = metric
+        if self.cache_file is not None:
+            if os.path.exists(self.cache_file):
+                self.cache = self._load_cache(kwargs["cache_file"])
+        self.save_cache = kwargs.get("save_cache", False)
+    def _load_cache(self, path):
+        files = np.load(path)
+        ids = files["ids"]
+        vectors = files["vectors"]
+        self.cache = dict(zip(ids, vectors))
 
         # WSDF1(label_vocab, mfs_vocab is not None, mfs_vocab)
         # self.label_vocab = label_vocab
-
     # def train(self, mode: bool = True):
     #     self.training = mode
     #     for module in self.children():

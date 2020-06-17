@@ -17,6 +17,7 @@ from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallbac
 from torch.optim import Adam
 from transformers import AdamW
 
+from src.data.cache_callback import DatasetCacheCallback
 from src.data.dataset_utils import build_outpath_subdirs, get_mapper, get_data, get_cached_dataset_file_name, \
     get_dev_dataset, get_allen_datasets
 from src.evaluation.evaluate_model import evaluate_datasets
@@ -63,7 +64,8 @@ def main(args):
 
     num_epochs = training_config["num_epochs"]
     patience = training_config["patience"]
-
+    if args.cpu:
+        device = "cpu"
     if args.gradient_clipping is not None:
         training_config["gradient_clipping"] = float(args.gradient_clipping)
         if training_config["gradient_clipping"] == 0.0:
@@ -102,7 +104,8 @@ def main(args):
     lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, invetory_dir=inventory_dir)
     train_label_mapper = get_mapper(training_paths, sense_inventory)
 
-    train_cached_dataset_file_name = get_cached_dataset_file_name(encoder_name, sense_inventory, training_paths,
+    train_cached_dataset_file_name = get_cached_dataset_file_name(encoder_name, sense_inventory,
+                                                                  [x.split("/")[-1] for x in training_paths],
                                                                   max_segments_in_batch)
     logger.info("loading training data")
     training_ds, training_iterator = get_allen_datasets(
@@ -150,6 +153,7 @@ def main(args):
             callbacks.append(tandw)
 
     callbacks.append(WanDBTrainingCallback(wandb_logger))
+    callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name)))
     optim = AdamOptimizer(model.named_parameters(), lr=learning_rate, weight_decay=weight_decay)
     if args.no_checkpoint:
         serialization_dir = None
@@ -202,6 +206,7 @@ if __name__ == "__main__":
     parser.add_argument("--dropout_2")
     parser.add_argument("--learning_rate")
     parser.add_argument("--gradient_clipping")
+    parser.add_argument("--cpu", action="store_true")
 
     args = parser.parse_args()
     if args.dryrun:
