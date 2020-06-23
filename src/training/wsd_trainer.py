@@ -12,7 +12,7 @@ import wandb
 import yaml
 from allennlp.nn.util import move_to_device
 from allennlp.training import GradientDescentTrainer, Checkpointer
-from allennlp.training.optimizers import AdamOptimizer
+from allennlp.training.optimizers import AdamOptimizer, AdamWOptimizer
 from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite, WanDBLogger
 from torch.optim import Adam
 from transformers import AdamW
@@ -154,8 +154,10 @@ def main(args):
 
     callbacks.append(WanDBTrainingCallback(wandb_logger))
     callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name)))
-    Adam
-    optim = AdamOptimizer(model.named_parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # AdamWOptimizer(model.named_parameters(), lr=learning_rate, eps=1e-6, weight_decay=weight_decay)
+    optim = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    #optim = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # optim = Adam(model.named_parameters(), lr=learning_rate, weight_decay=weight_decay)
     if args.no_checkpoint:
         serialization_dir = None
     else:
