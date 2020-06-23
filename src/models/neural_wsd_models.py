@@ -162,13 +162,14 @@ class AllenWSDModel(Model, ABC):
 
         # WSDF1(label_vocab, mfs_vocab is not None, mfs_vocab)
         # self.label_vocab = label_vocab
-    # def train(self, mode: bool = True):
-    #     self.training = mode
-    #     for module in self.children():
-    #         if module == self.word_embeddings and not self.finetune_embedder:
-    #             continue
-    #         module.train(mode)
-    #     return self
+
+    def train(self, mode: bool = True):
+        self.training = mode
+        for module in self.children():
+            if module == self.word_embeddings and not self.finetune_embedder:
+                continue
+            module.train(mode)
+        return self
 
     def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
         params = list()
@@ -391,10 +392,10 @@ class AllenBatchNormWsdModel(AllenWSDModel):
 
 
     def wsd_head(self, embeddings):
-        embeddings = self.dropout_1(embeddings)
+        # embeddings = self.dropout_1(embeddings)
         if len(embeddings) > 1:
             embeddings = self.batchnorm(embeddings)
 
-        embeddings = self.dropout_2(embeddings)
+        # embeddings = self.dropout_2(embeddings)
         embeddings = swish(self.linear(embeddings))
         return self.classifier(embeddings)  # mask.unsqueeze(-1)

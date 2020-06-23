@@ -154,6 +154,7 @@ def main(args):
 
     callbacks.append(WanDBTrainingCallback(wandb_logger))
     callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name)))
+    Adam
     optim = AdamOptimizer(model.named_parameters(), lr=learning_rate, weight_decay=weight_decay)
     if args.no_checkpoint:
         serialization_dir = None
