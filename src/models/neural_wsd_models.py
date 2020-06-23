@@ -153,6 +153,7 @@ class AllenWSDModel(Model, ABC):
             if os.path.exists(self.cache_file):
                 self.cache = self._load_cache(kwargs["cache_file"])
         self.save_cache = kwargs.get("save_cache", False)
+
     def _load_cache(self, path):
         files = np.load(path)
         ids = files["ids"]
@@ -169,12 +170,12 @@ class AllenWSDModel(Model, ABC):
     #         module.train(mode)
     #     return self
 
-    # def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
-    #     params = list()
-    #     if self.finetune_embedder:
-    #         params.extend(self.word_embeddings.named_parameters())
-    #     params.extend(self.classifier.named_parameters())
-    #     yield from params
+    def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
+        params = list()
+        if self.finetune_embedder:
+            params.extend(self.word_embeddings.named_parameters())
+        params.extend(self.classifier.named_parameters())
+        yield from params
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         return self.accuracy.get_metric(reset)
@@ -341,8 +342,8 @@ class AllenWSDModel(Model, ABC):
 
         if model_path is not None:
             state_dict = torch.load(model_path)
-            updated_state_dict = {k.replace("bert.", "model."): v for k, v in state_dict.items()}
-            text_embedder.load_state_dict(updated_state_dict, strict=False)
+            updated_state_dict = {"_matched_embedder.transformer_model." + k: v for k, v in state_dict.items()}
+            text_embedder.load_state_dict(updated_state_dict, strict=True)
 
         word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder})
         model = cls(word_embeddings=word_embeddings,

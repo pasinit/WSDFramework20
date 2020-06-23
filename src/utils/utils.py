@@ -23,7 +23,7 @@ def get_model(model_config, out_size, pad_token_id, label_pad_token_id, metric=N
                                                        pad_id=pad_token_id,
                                                        label_pad_id=label_pad_token_id,
                                                        vocab=Vocabulary(),
-                                                       model_path=model_config.get("model_path", None),
+                                                       # model_path=model_config.get("model_path", None),
                                                        metric=metric,
                                                        device=device)
     return model
