@@ -12,6 +12,7 @@ import wandb
 import yaml
 from allennlp.nn.util import move_to_device
 from allennlp.training import GradientDescentTrainer, Checkpointer
+from allennlp.training.learning_rate_schedulers import PolynomialDecay
 from allennlp.training.optimizers import AdamOptimizer, AdamWOptimizer
 from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite, WanDBLogger
 from torch.optim import Adam
@@ -154,10 +155,12 @@ def main(args):
 
     callbacks.append(WanDBTrainingCallback(wandb_logger))
     callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name)))
-    # AdamWOptimizer(model.named_parameters(), lr=learning_rate, eps=1e-6, weight_decay=weight_decay)
     optim = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    #optim = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    # optim = Adam(model.named_parameters(), lr=learning_rate, weight_decay=weight_decay)
+    learning_rate_scheduler = None
+    if training_config.get("warmup_lr", False):
+        total_steps = len(training_iterator)
+        warmup_steps = total_steps // training_config.get("warmup_steps_perc", 10)
+        learning_rate_scheduler = PolynomialDecay(optim, total_steps, warmup_steps=warmup_steps)
     if args.no_checkpoint:
         serialization_dir = None
     else:
@@ -176,6 +179,7 @@ def main(args):
                                      serialization_dir=serialization_dir,
                                      checkpointer=Checkpointer(serialization_dir,
                                                                num_serialized_models_to_keep=1),
+                                     learning_rate_scheduler=learning_rate_scheduler
                                      )
 
     trainer.train()
