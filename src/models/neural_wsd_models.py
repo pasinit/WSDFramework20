@@ -18,6 +18,10 @@ from torch.nn.modules.container import Sequential
 from transformers.activations import swish
 import os
 import numpy as np
+
+from src.misc.wsdlogging import get_info_logger
+
+
 class WSDOutputWriter(OutputWriter):
     def __init__(self, output_file, labeldict):
         super().__init__(output_file, labeldict)
@@ -342,6 +346,7 @@ class AllenWSDModel(Model, ABC):
         embedding_size = text_embedder.get_output_dim()
 
         if model_path is not None:
+            get_info_logger(__name__).info("Loading weights from {}".format(model_path))
             state_dict = torch.load(model_path)
             updated_state_dict = {"_matched_embedder.transformer_model." + k: v for k, v in state_dict.items()}
             text_embedder.load_state_dict(updated_state_dict, strict=True)
