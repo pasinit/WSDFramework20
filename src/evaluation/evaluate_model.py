@@ -163,10 +163,9 @@ def main(args):
     device_int = 0 if device == "cuda" else -1
     lang2test_paths = {lang: [os.path.join(test_data_root, name, name + ".data.xml") for name in names] for lang, names
                        in test_lang2name.items()}
-
+    
     test_label_mapper = get_mapper(lang2test_paths, sense_inventory)
     lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, inventory_dir=inventory_dir)
-
     test_dss = {lang: [get_allen_datasets(None,
                                           encoder_name, lemma2synsets,
                                           label_vocab, test_label_mapper, config["data"]["max_segments_in_batch"],
