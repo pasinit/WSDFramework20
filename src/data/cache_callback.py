@@ -30,6 +30,6 @@ class DatasetCacheCallback(EpochCallback):
             cache = trainer.model.cache
             ids, vectors = zip(*cache.items())
             np.savez_compressed(self.path, ids=ids, vectors=[v.detach().cpu().numpy() for v in vectors])
+            self.loaded = True
         else:
             get_info_logger(__name__).info("cache nof found")
-
