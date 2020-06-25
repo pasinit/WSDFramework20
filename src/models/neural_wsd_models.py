@@ -338,11 +338,15 @@ class AllenWSDModel(Model, ABC):
                                         finetune_embedder=False,
                                         cache_instances=False,
                                         model_path=None,
-                                        metric=None, **kwargs):
+                                        metric=None,
+                                        **kwargs):
+        if "bpe_combiner" in kwargs:
+            bpe_combiner = kwargs.pop("bpe_combiner")
+        else: bpe_combiner = "mean"
         vocab = Vocabulary() if vocab is None else vocab
         if encoder_name.lower() == "nhs":
             encoder_name = "bert-base-multilingual-cased"
-        text_embedder = MultilayerPretrainedTransformerMismatchedEmbedder(encoder_name, layers_to_use)
+        text_embedder = MultilayerPretrainedTransformerMismatchedEmbedder(encoder_name, layers_to_use, word_segment_emb_merger=bpe_combiner)
         embedding_size = text_embedder.get_output_dim()
 
         if model_path is not None:
