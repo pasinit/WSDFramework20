@@ -155,6 +155,7 @@ class AllenWSDModel(Model, ABC):
         self.accuracy = metric
         if self.cache_file is not None:
             if os.path.exists(self.cache_file):
+                get_info_logger(__name__).info("cache found, loading instances' hidden states.")
                 self.cache = self._load_cache(kwargs["cache_file"])
         self.save_cache = kwargs.get("save_cache", False)
 
@@ -340,9 +341,7 @@ class AllenWSDModel(Model, ABC):
                                         model_path=None,
                                         metric=None,
                                         **kwargs):
-        if "bpe_combiner" in kwargs:
-            bpe_combiner = kwargs.pop("bpe_combiner")
-        else: bpe_combiner = "mean"
+        bpe_combiner = kwargs.get("bpe_combiner", "mean")
         vocab = Vocabulary() if vocab is None else vocab
         if encoder_name.lower() == "nhs":
             encoder_name = "bert-base-multilingual-cased"
