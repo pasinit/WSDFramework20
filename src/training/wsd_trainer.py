@@ -3,19 +3,15 @@ import _pickle as pkl
 import os
 import socket
 from argparse import ArgumentParser
-from io import StringIO
 from pprint import pprint
 
 import numpy as np
 import torch
 import wandb
 import yaml
-from allennlp.nn.util import move_to_device
 from allennlp.training import GradientDescentTrainer, Checkpointer
 from allennlp.training.learning_rate_schedulers import PolynomialDecay
-from allennlp.training.optimizers import AdamOptimizer, AdamWOptimizer
 from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite, WanDBLogger
-from torch.optim import Adam
 from transformers import AdamW
 
 from src.data.cache_callback import DatasetCacheCallback
@@ -105,7 +101,12 @@ def main(args):
     lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, invetory_dir=inventory_dir)
     train_label_mapper = get_mapper(training_paths, sense_inventory)
 
-    train_cached_dataset_file_name = get_cached_dataset_file_name(encoder_name, sense_inventory,
+    train_cached_dataset_file_name = get_cached_dataset_file_name([model_config[x] for x in ["encoder_name",
+                                                                                             "model_path",
+                                                                                             "layers_to_use",
+                                                                                             "bpe_combiner"] if
+                                                                   x in model_config],
+                                                                  sense_inventory,
                                                                   [x.split("/")[-1] for x in training_paths],
                                                                   max_segments_in_batch)
     logger.info("loading training data")
