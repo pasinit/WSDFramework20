@@ -155,7 +155,7 @@ def main(args):
             callbacks.append(tandw)
 
     callbacks.append(WanDBTrainingCallback(wandb_logger))
-    callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name)))
+    callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name), force_reload))
     optim = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     learning_rate_scheduler = None
     if training_config.get("warmup_lr", False):
