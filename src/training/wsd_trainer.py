@@ -82,7 +82,7 @@ def main(args):
     weight_decay = float(training_config.get("weight_decay", 0.0))
     gradient_clipping = training_config.get("gradient_clipping", None)
     wandb_run_name = wandb_config.get("run_name", wsd_model_name + "_" + encoder_name)
-    wandb.init(config=config, project="wsd_framework_3.0", tags=[socket.gethostname(), wsd_model_name, ",".join(langs)],
+    wandb.init(config=config, project="wsd_framework_3.0_no_weight_bug", tags=[socket.gethostname(), wsd_model_name, ",".join(langs)],
                name=wandb_run_name, resume=wandb_config.get("resume", False))
     wandb.log({"random_seed": seed})
     logger.info("loading config: " + args.config)
