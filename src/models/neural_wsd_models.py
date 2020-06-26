@@ -374,7 +374,12 @@ class AllenFFWsdModel(AllenWSDModel):
         self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(embedding_size, out_sz, bias=False)
         self.head = Sequential(self.dropout, self.classifier)
-
+    def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
+        params = list()
+        if self.finetune_embedder:
+            params.extend(self.word_embeddings.named_parameters())
+        params.extend(self.classifier.named_parameters())
+        yield from params
     def wsd_head(self, embeddings):
         return self.head(embeddings)
 
@@ -398,6 +403,14 @@ class AllenBatchNormWsdModel(AllenWSDModel):
         self.dropout_1 = nn.Dropout(self.dropout_prob_2)
         self.dropout_2 = nn.Dropout(self.dropout_prob_2)
 
+    def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
+        params = list()
+        if self.finetune_embedder:
+            params.extend(self.word_embeddings.named_parameters())
+            params.extend(self.linear.named_parameters())
+            params.extend(self.batchnorm.named_parameters())
+        params.extend(self.classifier.named_parameters())
+        yield from params
 
     def wsd_head(self, embeddings):
         # embeddings = self.dropout_1(embeddings)

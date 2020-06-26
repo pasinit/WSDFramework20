@@ -58,9 +58,10 @@ def main(args):
     device = model_config["device"]
     encoder_name = model_config["encoder_name"]
     wsd_model_name = model_config["wsd_model_name"]
-
+    finetune_embedder = model_config["finetune_embedder"]
     num_epochs = training_config["num_epochs"]
     patience = training_config["patience"]
+    gradient_accumulation = training_config.get("gradient_accumulation", 1)
     if args.cpu:
         device = "cpu"
     if args.gradient_clipping is not None:
@@ -155,13 +156,15 @@ def main(args):
             callbacks.append(tandw)
 
     callbacks.append(WanDBTrainingCallback(wandb_logger))
-    callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name), force_reload))
+    if finetune_embedder is False:
+        callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name), force_reload))
     optim = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     learning_rate_scheduler = None
     if training_config.get("warmup_lr", False):
-        total_steps = len(training_iterator)
+        total_steps = (len(training_iterator) * num_epochs) // gradient_accumulation
         warmup_steps = total_steps // training_config.get("warmup_steps_perc", 10)
         learning_rate_scheduler = PolynomialDecay(optim, total_steps, warmup_steps=warmup_steps)
+        logger.info("Learning rate warmup steps: {}".format(warmup_steps))
     if args.no_checkpoint:
         serialization_dir = None
     else:
@@ -173,7 +176,7 @@ def main(args):
                                      grad_clipping=gradient_clipping,
                                      num_epochs=num_epochs,
                                      validation_data_loader=dev_iterator,
-                                     num_gradient_accumulation_steps=training_config.get("gradient_accumulation", 1),
+                                     num_gradient_accumulation_steps=gradient_accumulation,
                                      validation_metric=training_config.get("validation_metric", "-loss"),
                                      epoch_callbacks=callbacks,
                                      patience=patience,
