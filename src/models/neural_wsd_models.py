@@ -177,11 +177,12 @@ class AllenWSDModel(Model, ABC):
         return self
 
     def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
-        params = list()
-        if self.finetune_embedder:
-            params.extend(self.word_embeddings.named_parameters())
-        params.extend(self.classifier.named_parameters())
-        yield from params
+        raise NotImplementedError()
+        # params = list()
+        # if self.finetune_embedder:
+        #     params.extend(self.word_embeddings.named_parameters())
+        # params.extend(self.classifier.named_parameters())
+        # yield from params
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         return self.accuracy.get_metric(reset)
@@ -407,8 +408,8 @@ class AllenBatchNormWsdModel(AllenWSDModel):
         params = list()
         if self.finetune_embedder:
             params.extend(self.word_embeddings.named_parameters())
-            params.extend(self.linear.named_parameters())
-            params.extend(self.batchnorm.named_parameters())
+        params.extend(self.linear.named_parameters())
+        params.extend(self.batchnorm.named_parameters())
         params.extend(self.classifier.named_parameters())
         yield from params
 
