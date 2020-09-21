@@ -345,7 +345,8 @@ class AllenWSDModel(Model, ABC):
         vocab = Vocabulary() if vocab is None else vocab
         if encoder_name.lower() == "nhs":
             encoder_name = "bert-base-multilingual-cased"
-        text_embedder = MultilayerPretrainedTransformerMismatchedEmbedder(encoder_name, layers_to_use, word_segment_emb_merger=bpe_combiner)
+        text_embedder = MultilayerPretrainedTransformerMismatchedEmbedder(encoder_name, layers_to_use,
+                                                                          word_segment_emb_merger=bpe_combiner)
         embedding_size = text_embedder.get_output_dim()
 
         if model_path is not None:
@@ -374,12 +375,14 @@ class AllenFFWsdModel(AllenWSDModel):
         self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(embedding_size, out_sz, bias=False)
         self.head = Sequential(self.dropout, self.classifier)
+
     def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
         params = list()
         if self.finetune_embedder:
             params.extend(self.word_embeddings.named_parameters())
         params.extend(self.classifier.named_parameters())
         yield from params
+
     def wsd_head(self, embeddings):
         return self.head(embeddings)
 

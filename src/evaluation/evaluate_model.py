@@ -140,6 +140,10 @@ def main(args):
         config = yaml.load(reader, Loader=yaml.FullLoader)
     verbose = args.verbose
     debug = args.debug
+    test_pos = args.pos
+    if test_pos is not None:
+        test_pos = set(test_pos)
+
     data_config = config["data"]
     model_config = config["model"]
     outpath = data_config["outpath"]
@@ -170,7 +174,7 @@ def main(args):
                                           encoder_name, lemma2synsets,
                                           label_vocab, test_label_mapper, config["data"]["max_segments_in_batch"],
                                           {lang: [tp]}, force_reload=True, serialize=False,
-                                          device = torch.device(device)) for tp in test_paths]
+                                          device = torch.device(device), pos=test_pos) for tp in test_paths]
                 for lang, test_paths in lang2test_paths.items()}
 
     metric = WSDF1(label_vocab, mfs_dictionary is not None, mfs_dictionary)
@@ -238,6 +242,8 @@ if __name__ == "__main__":
     # parser.add_argument("--test_path", default=None, nargs="+")
     # parser.add_argument("--find_best", action="store_true", default=False)
     # parser.add_argument("--dev_set", default=None, type=str)
+
+    parser.add_argument("--pos", default=None)
     parser.add_argument("--verbose", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--cpu", action="store_true", default=False)

@@ -1,7 +1,7 @@
 import hashlib
 import logging
 from collections import Counter
-from typing import Dict, Tuple, Union, List
+from typing import Dict, Tuple, Union, List, Set
 
 import torch
 import os
@@ -228,14 +228,15 @@ def get_allen_datasets(cached_dataset_file_name: str,
                        force_reload: bool,
                        serialize=True,
                        is_trainingset=True,
-                       device=torch.device("cuda")):
+                       device=torch.device("cuda"),
+                       pos=None):
     # if not force_reload and os.path.exists(os.path.join(".cache/", cached_dataset_file_name)):
     #     logger.info("Loading datasetset from cache: {}".format(os.path.join(".cache/", cached_dataset_file_name)))
     #     logger.info(lang2paths)
     #     with open(os.path.join(".cache/", cached_dataset_file_name), "rb") as reader:
     #         training_iterator, training_ds = pkl.load(reader)
     # else:
-    training_ds = get_dataset(encoder_name, lang2paths, lemma2synsets, label_mapper, label_vocab)
+    training_ds = get_dataset(encoder_name, lang2paths, lemma2synsets, label_mapper, label_vocab, pos=pos)
     training_ds.index_with(Vocabulary())
     training_iterator = get_bucket_iterator(training_ds, max_segments_in_batch, is_trainingset=is_trainingset,
                                             device=device)
@@ -249,11 +250,11 @@ def get_dataset(encoder_name: str,
                 paths: Dict[str, List[str]],
                 lemma2synsets: MultilingualLemma2Synsets,
                 label_mapper: Dict[str, str],
-                label_vocab: LabelVocabulary) \
+                label_vocab: LabelVocabulary, pos:Union[None, Set]=None) \
         -> AllennlpDataset:
     indexer = PretrainedTransformerMismatchedIndexer(encoder_name)
     dataset = WSDDataset(paths, lemma2synsets=lemma2synsets, label_mapper=label_mapper,
-                         indexer=indexer, label_vocab=label_vocab)
+                         indexer=indexer, label_vocab=label_vocab, pos=pos)
     return dataset
 
 
