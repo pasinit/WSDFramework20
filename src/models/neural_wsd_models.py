@@ -414,10 +414,10 @@ class AllenBatchNormWsdModel(AllenWSDModel):
         yield from params
 
     def wsd_head(self, embeddings):
-        # embeddings = self.dropout_1(embeddings)
+        embeddings = self.dropout_1(embeddings)
         if len(embeddings) > 1:
             embeddings = self.batchnorm(embeddings)
 
-        # embeddings = self.dropout_2(embeddings)
+        embeddings = self.dropout_2(embeddings)
         embeddings = swish(self.linear(embeddings))
         return self.classifier(embeddings)  # mask.unsqueeze(-1)
