@@ -189,7 +189,7 @@ def get_label_mapper(target_inventory, labels):
         elif target_inventory == "sensekeys":
             return get_wnoffset2wnkeys()
         return None
-    elif label_type == "sensekeys" is not None:
+    elif label_type == "sensekeys":
         if target_inventory == "bnoffsets":
             return get_wnkeys2bnoffset()
         elif target_inventory == "wnoffsets":

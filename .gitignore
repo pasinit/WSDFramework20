@@ -27,3 +27,6 @@ sample_en
 sweep.i97op0ma.txt
 sweep.*
 data
+lightning_logs
+multimodal_wsd
+to_send
