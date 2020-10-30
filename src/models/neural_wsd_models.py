@@ -352,9 +352,9 @@ class AllenWSDModel(Model, ABC):
         if model_path is not None:
             get_info_logger(__name__).info("Loading weights from {}".format(model_path))
             state_dict = torch.load(model_path, map_location=torch.device("cpu"))
-            for k in list(state_dict.keys()):
-                if not k.startswith("model."):
-                    del state_dict[k]
+            # for k in list(state_dict.keys()):
+            #     if not k.startswith("model."):
+            #         del state_dict[k]
             updated_state_dict = {"_matched_embedder.transformer_model." + k.replace("model.", ""): v for k, v in state_dict.items()}
             print(text_embedder.state_dict().keys())
             updated_state_dict["_matched_embedder.transformer_model.embeddings.position_ids"] = text_embedder.state_dict()["_matched_embedder.transformer_model.embeddings.position_ids"]

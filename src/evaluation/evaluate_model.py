@@ -85,6 +85,7 @@ def evaluate_datasets(model: AllenWSDModel,
                       output_path,
                       verbose=True, debug=False,
                       ):
+    print("loading checkpoint ", checkpoint_path)
     model.load_state_dict(
         torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
     model.eval()
@@ -160,6 +161,8 @@ def main(args):
     output_path = os.path.join(outpath, wsd_model_name + "_" + encoder_name)
     if "checkpoint_path" in vars(args) and args.checkpoint_path is not None:
         checkpoint_path = args.checkpoint_path
+    elif "checkpoint_name" in model_config and model_config["checkpoint_name"] is not None:
+        checkpoint_path = os.path.join(output_path, "checkpoints", model_config["checkpoint_name"])
     else:
         checkpoint_path = os.path.join(output_path, "checkpoints", "best.th")
     if not os.path.exists(checkpoint_path):
