@@ -113,11 +113,11 @@ class TrainingParams(dict):
 if __name__ == "__main__":
     encoder_name = "unc-nlp/lxmert-base-uncased"
     sense_vocab_size = 206941
-    finetune_encoder = True
+    finetune_encoder = False
     epochs = 50
-    batch_accumulation = 16
-    batch_size = 2
-    lr = 2e-5
+    batch_accumulation = 8
+    batch_size = 4
+    lr = 1e-5
     params = TrainingParams()
     params["batch_size"] = batch_size
     params["lr"] = lr
@@ -143,7 +143,7 @@ if __name__ == "__main__":
                                offline=False,
                                log_model=True,
                                save_dir="data4/")
-    trainer = pl.Trainer(gpus=1, precision=32, max_epochs=epochs,
+    trainer = pl.Trainer(gpus=1, precision=16, max_epochs=epochs,
                          accumulate_grad_batches=batch_accumulation,
                          logger=[wandb_logger])  # , limit_val_batches=0.1)
 
