@@ -356,6 +356,7 @@ class AllenWSDModel(Model, ABC):
             #     if not k.startswith("model."):
             #         del state_dict[k]
             updated_state_dict = {"_matched_embedder.transformer_model." + k.replace("model.", ""): v for k, v in state_dict.items()}
+            print(text_embedder.state_dict().keys())
             updated_state_dict["_matched_embedder.transformer_model.embeddings.position_ids"] = text_embedder.state_dict()["_matched_embedder.transformer_model.embeddings.position_ids"]
             text_embedder.load_state_dict(updated_state_dict, strict=False)
 
