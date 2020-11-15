@@ -67,11 +67,11 @@ class MultimodalWSDModel(Module):
         self.classifier = Linear(in_features=embedding_size, out_features=output_vocab_size)
 
     def wsd_head(self, embeddings):
-        # if len(embeddings) > 1:
-        #     print(embeddings.shape)
-        #     embeddings = self.batchnorm(embeddings)
+        if len(embeddings) > 1:
+            embeddings = self.batchnorm(embeddings)
+
         embeddings = torch.dropout(embeddings, 0.5, self.training)
-        # embeddings = swish(self.linear(embeddings))
+        embeddings = swish(self.linear(embeddings))
         return self.classifier(embeddings)  # mask.unsqueeze(-1)
 
     def update_cache(self, embeddings, token_ids):

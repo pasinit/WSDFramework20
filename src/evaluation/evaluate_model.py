@@ -95,6 +95,7 @@ def evaluate_datasets(model: AllenWSDModel,
     # datasets = zip(data_loaders, test_names)
     # if not verbose:
     #     datasets = tqdm(datasets, desc="datasets_progress")
+    print("start evaluation")
     for lang, datasets in data_loaders.items():
         t_names = test_names[lang]
         for (data_loader, iterator), name in zip(datasets, t_names):
@@ -102,6 +103,7 @@ def evaluate_datasets(model: AllenWSDModel,
             metrics = evaluate(iterator, model, os.path.join(output_path, name + ".predictions.txt"),
                                label_vocab, device_int, mfs_dictionary is not None, mfs_dictionary, verbose=verbose,
                                debug=debug)
+            print(lang, metrics["f1"])
             all_metrics[name] = OrderedDict(
                 {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
                  "f1_mfs": metrics.get("f1_mfs", None)})

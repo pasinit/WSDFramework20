@@ -357,7 +357,7 @@ class AllenWSDModel(Model, ABC):
             #         del state_dict[k]
             updated_state_dict = {"_matched_embedder.transformer_model." + k.replace("model.", ""): v for k, v in state_dict.items()}
             updated_state_dict["_matched_embedder.transformer_model.embeddings.position_ids"] = text_embedder.state_dict()["_matched_embedder.transformer_model.embeddings.position_ids"]
-            text_embedder.load_state_dict(updated_state_dict, strict=True)
+            text_embedder.load_state_dict(updated_state_dict, strict=False)
 
         word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder})
         model = cls(word_embeddings=word_embeddings,
