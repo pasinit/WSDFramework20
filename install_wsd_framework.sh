@@ -6,8 +6,8 @@ fi
 git clone git@github.com:pasinit/WSDFramework20.git
 git clone git@github.com:tommy9114/nlp_resources.git
 cd WSDFramework20
-virtualenv wsd_framework_venv -p $1
-source wsd_framework_venv/bin/activate
+conda create --name wsd_framework python=3.7
+conda activate wsd_framework
 cd ../nlp_resources
 pip install . 
 cd ../WSDFramework20
