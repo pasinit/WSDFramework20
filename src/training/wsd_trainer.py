@@ -3,20 +3,18 @@ import _pickle as pkl
 import os
 import socket
 from argparse import ArgumentParser
-from io import StringIO
 from pprint import pprint
 
 import numpy as np
 import torch
 import wandb
 import yaml
-from allennlp.nn.util import move_to_device
 from allennlp.training import GradientDescentTrainer, Checkpointer
-from allennlp.training.optimizers import AdamOptimizer
+from allennlp.training.learning_rate_schedulers import PolynomialDecay
 from nlp_tools.allennlp_training_callbacks.callbacks import WanDBTrainingCallback, TestAndWrite, WanDBLogger
-from torch.optim import Adam
 from transformers import AdamW
 
+from src.data.cache_callback import DatasetCacheCallback
 from src.data.dataset_utils import build_outpath_subdirs, get_mapper, get_data, get_cached_dataset_file_name, \
     get_dev_dataset, get_allen_datasets
 from src.evaluation.evaluate_model import evaluate_datasets
@@ -60,12 +58,16 @@ def main(args):
     device = model_config["device"]
     encoder_name = model_config["encoder_name"]
     wsd_model_name = model_config["wsd_model_name"]
-
+    finetune_embedder = model_config["finetune_embedder"]
     num_epochs = training_config["num_epochs"]
     patience = training_config["patience"]
-
+    gradient_accumulation = training_config.get("gradient_accumulation", 1)
+    if args.cpu:
+        device = "cpu"
     if args.gradient_clipping is not None:
         training_config["gradient_clipping"] = float(args.gradient_clipping)
+        if training_config["gradient_clipping"] == 0.0:
+            training_config["gradient_clipping"] = None
     if args.learning_rate is not None:
         training_config["learning_rate"] = float(args.learning_rate)
     if args.weight_decay is not None:
@@ -74,8 +76,10 @@ def main(args):
         model_config["dropout_1"] = float(args.dropout_1)
     if args.dropout_2 is not None:
         model_config["dropout_2"] = float(args.dropout_2)
+    print(training_config)
+    print(model_config)
     learning_rate = float(training_config["learning_rate"])
-    weight_decay = float(training_config["weight_decay"])
+    weight_decay = float(training_config.get("weight_decay", 0.0))
     gradient_clipping = training_config.get("gradient_clipping", None)
     wandb_run_name = wandb_config.get("run_name", wsd_model_name + "_" + encoder_name)
     wandb.init(config=config, project="wsd_framework_3.0", tags=[socket.gethostname(), wsd_model_name, ",".join(langs)],
@@ -98,7 +102,13 @@ def main(args):
     lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, invetory_dir=inventory_dir)
     train_label_mapper = get_mapper(training_paths, sense_inventory)
 
-    train_cached_dataset_file_name = get_cached_dataset_file_name(encoder_name, sense_inventory, training_paths,
+    train_cached_dataset_file_name = get_cached_dataset_file_name([model_config[x] for x in ["encoder_name",
+                                                                                             "model_path",
+                                                                                             "layers_to_use",
+                                                                                             "bpe_combiner"] if
+                                                                   x in model_config],
+                                                                  sense_inventory,
+                                                                  [x.split("/")[-1] for x in training_paths],
                                                                   max_segments_in_batch)
     logger.info("loading training data")
     training_ds, training_iterator = get_allen_datasets(
@@ -146,7 +156,15 @@ def main(args):
             callbacks.append(tandw)
 
     callbacks.append(WanDBTrainingCallback(wandb_logger))
-    optim = AdamOptimizer(model.named_parameters(), lr=learning_rate, weight_decay=weight_decay)
+    if finetune_embedder is False:
+        callbacks.append(DatasetCacheCallback(".cache/{}".format(train_cached_dataset_file_name), force_reload))
+    optim = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    learning_rate_scheduler = None
+    if training_config.get("warmup_lr", False):
+        total_steps = (len(training_iterator) * num_epochs) // gradient_accumulation
+        warmup_steps = total_steps // training_config.get("warmup_steps_perc", 10)
+        learning_rate_scheduler = PolynomialDecay(optim, total_steps, warmup_steps=warmup_steps)
+        logger.info("Learning rate warmup steps: {}".format(warmup_steps))
     if args.no_checkpoint:
         serialization_dir = None
     else:
@@ -158,13 +176,14 @@ def main(args):
                                      grad_clipping=gradient_clipping,
                                      num_epochs=num_epochs,
                                      validation_data_loader=dev_iterator,
-                                     num_gradient_accumulation_steps=training_config.get("gradient_accumulation", 1),
+                                     num_gradient_accumulation_steps=gradient_accumulation,
                                      validation_metric=training_config.get("validation_metric", "-loss"),
                                      epoch_callbacks=callbacks,
                                      patience=patience,
                                      serialization_dir=serialization_dir,
                                      checkpointer=Checkpointer(serialization_dir,
                                                                num_serialized_models_to_keep=1),
+                                     learning_rate_scheduler=learning_rate_scheduler
                                      )
 
     trainer.train()
@@ -198,6 +217,7 @@ if __name__ == "__main__":
     parser.add_argument("--dropout_2")
     parser.add_argument("--learning_rate")
     parser.add_argument("--gradient_clipping")
+    parser.add_argument("--cpu", action="store_true")
 
     args = parser.parse_args()
     if args.dryrun:

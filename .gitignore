@@ -6,12 +6,9 @@ wandb
 .*__init__.*
 src/__init__.pyc
 .idea
-data
 resources
-*__pycache__*
 wandb/
 *.log
-data/
 wsdframework_env/
 xlm_fr_log.txt
 data2/models
@@ -19,6 +16,7 @@ data2
 data_bkp
 data3
 data/
+config/
 venv
 data4
 logs
@@ -29,3 +27,8 @@ wsdframework_data.tar.gz
 data5
 sample_en
 sweep.i97op0ma.txt
+sweep.*
+data
+lightning_logs
+multimodal_wsd
+to_send

@@ -16,6 +16,10 @@ from torch.nn import Parameter
 from torch.nn.modules.batchnorm import BatchNorm1d
 from torch.nn.modules.container import Sequential
 from transformers.activations import swish
+import os
+import numpy as np
+
+from src.misc.wsdlogging import get_info_logger
 
 
 class WSDOutputWriter(OutputWriter):
@@ -147,25 +151,37 @@ class AllenWSDModel(Model, ABC):
         self.return_full_output = return_full_output
         self.cache_instances = cache_instances
         self.cache = dict()
+        self.cache_file = kwargs.get("cache_file", None)
         self.accuracy = metric
+        if self.cache_file is not None:
+            if os.path.exists(self.cache_file):
+                get_info_logger(__name__).info("cache found, loading instances' hidden states.")
+                self.cache = self._load_cache(kwargs["cache_file"])
+        self.save_cache = kwargs.get("save_cache", False)
+
+    def _load_cache(self, path):
+        files = np.load(path)
+        ids = files["ids"]
+        vectors = files["vectors"]
+        self.cache = dict(zip(ids, vectors))
 
         # WSDF1(label_vocab, mfs_vocab is not None, mfs_vocab)
         # self.label_vocab = label_vocab
 
-    # def train(self, mode: bool = True):
-    #     self.training = mode
-    #     for module in self.children():
-    #         if module == self.word_embeddings and not self.finetune_embedder:
-    #             continue
-    #         module.train(mode)
-    #     return self
+    def train(self, mode: bool = True):
+        self.training = mode
+        for module in self.children():
+            if module == self.word_embeddings and not self.finetune_embedder:
+                continue
+            module.train(mode)
+        return self
 
-    # def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
-    #     params = list()
-    #     if self.finetune_embedder:
-    #         params.extend(self.word_embeddings.named_parameters())
-    #     params.extend(self.classifier.named_parameters())
-    #     yield from params
+    def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
+        params = list()
+        if self.finetune_embedder:
+            params.extend(self.word_embeddings.named_parameters())
+        params.extend(self.classifier.named_parameters())
+        yield from params
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         return self.accuracy.get_metric(reset)
@@ -323,16 +339,25 @@ class AllenWSDModel(Model, ABC):
                                         finetune_embedder=False,
                                         cache_instances=False,
                                         model_path=None,
-                                        metric=None, **kwargs):
+                                        metric=None,
+                                        **kwargs):
+        bpe_combiner = kwargs.get("bpe_combiner", "mean")
         vocab = Vocabulary() if vocab is None else vocab
         if encoder_name.lower() == "nhs":
             encoder_name = "bert-base-multilingual-cased"
-        text_embedder = MultilayerPretrainedTransformerMismatchedEmbedder(encoder_name, layers_to_use)
+        text_embedder = MultilayerPretrainedTransformerMismatchedEmbedder(encoder_name, layers_to_use,
+                                                                          word_segment_emb_merger=bpe_combiner)
         embedding_size = text_embedder.get_output_dim()
 
         if model_path is not None:
-            state_dict = torch.load(model_path)
-            updated_state_dict = {k.replace("bert.", "model."): v for k, v in state_dict.items()}
+            get_info_logger(__name__).info("Loading weights from {}".format(model_path))
+            state_dict = torch.load(model_path, map_location=torch.device("cpu"))
+            # for k in list(state_dict.keys()):
+            #     if not k.startswith("model."):
+            #         del state_dict[k]
+            updated_state_dict = {"_matched_embedder.transformer_model." + k.replace("model.", ""): v for k, v in state_dict.items()}
+            print(text_embedder.state_dict().keys())
+            updated_state_dict["_matched_embedder.transformer_model.embeddings.position_ids"] = text_embedder.state_dict()["_matched_embedder.transformer_model.embeddings.position_ids"]
             text_embedder.load_state_dict(updated_state_dict, strict=False)
 
         word_embeddings: TextFieldEmbedder = BasicTextFieldEmbedder({"tokens": text_embedder})
@@ -355,6 +380,13 @@ class AllenFFWsdModel(AllenWSDModel):
         self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(embedding_size, out_sz, bias=False)
         self.head = Sequential(self.dropout, self.classifier)
+
+    def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
+        params = list()
+        if self.finetune_embedder:
+            params.extend(self.word_embeddings.named_parameters())
+        params.extend(self.classifier.named_parameters())
+        yield from params
 
     def wsd_head(self, embeddings):
         return self.head(embeddings)
@@ -379,12 +411,20 @@ class AllenBatchNormWsdModel(AllenWSDModel):
         self.dropout_1 = nn.Dropout(self.dropout_prob_2)
         self.dropout_2 = nn.Dropout(self.dropout_prob_2)
 
+    def named_parameters(self, prefix: str = ..., recurse: bool = ...) -> Iterator[Tuple[str, Parameter]]:
+        params = list()
+        if self.finetune_embedder:
+            params.extend(self.word_embeddings.named_parameters())
+            params.extend(self.linear.named_parameters())
+            params.extend(self.batchnorm.named_parameters())
+        params.extend(self.classifier.named_parameters())
+        yield from params
 
     def wsd_head(self, embeddings):
-        embeddings = self.dropout_1(embeddings)
+        # embeddings = self.dropout_1(embeddings)
         if len(embeddings) > 1:
             embeddings = self.batchnorm(embeddings)
 
-        embeddings = self.dropout_2(embeddings)
+        # embeddings = self.dropout_2(embeddings)
         embeddings = swish(self.linear(embeddings))
         return self.classifier(embeddings)  # mask.unsqueeze(-1)

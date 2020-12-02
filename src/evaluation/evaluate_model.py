@@ -85,6 +85,7 @@ def evaluate_datasets(model: AllenWSDModel,
                       output_path,
                       verbose=True, debug=False,
                       ):
+    print("loading checkpoint ", checkpoint_path)
     model.load_state_dict(
         torch.load(checkpoint_path, map_location="cpu" if device_int < 0 else "cuda:{}".format(device_int)))
     model.eval()
@@ -94,6 +95,7 @@ def evaluate_datasets(model: AllenWSDModel,
     # datasets = zip(data_loaders, test_names)
     # if not verbose:
     #     datasets = tqdm(datasets, desc="datasets_progress")
+    print("start evaluation")
     for lang, datasets in data_loaders.items():
         t_names = test_names[lang]
         for (data_loader, iterator), name in zip(datasets, t_names):
@@ -101,6 +103,7 @@ def evaluate_datasets(model: AllenWSDModel,
             metrics = evaluate(iterator, model, os.path.join(output_path, name + ".predictions.txt"),
                                label_vocab, device_int, mfs_dictionary is not None, mfs_dictionary, verbose=verbose,
                                debug=debug)
+            print(lang, metrics["f1"])
             all_metrics[name] = OrderedDict(
                 {"precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"],
                  "f1_mfs": metrics.get("f1_mfs", None)})
@@ -140,6 +143,10 @@ def main(args):
         config = yaml.load(reader, Loader=yaml.FullLoader)
     verbose = args.verbose
     debug = args.debug
+    test_pos = args.pos
+    if test_pos is not None:
+        test_pos = set(test_pos)
+
     data_config = config["data"]
     model_config = config["model"]
     outpath = data_config["outpath"]
@@ -156,6 +163,8 @@ def main(args):
     output_path = os.path.join(outpath, wsd_model_name + "_" + encoder_name)
     if "checkpoint_path" in vars(args) and args.checkpoint_path is not None:
         checkpoint_path = args.checkpoint_path
+    elif "checkpoint_name" in model_config and model_config["checkpoint_name"] is not None:
+        checkpoint_path = os.path.join(output_path, "checkpoints", model_config["checkpoint_name"])
     else:
         checkpoint_path = os.path.join(output_path, "checkpoints", "best.th")
     if not os.path.exists(checkpoint_path):
@@ -163,15 +172,14 @@ def main(args):
     device_int = 0 if device == "cuda" else -1
     lang2test_paths = {lang: [os.path.join(test_data_root, name, name + ".data.xml") for name in names] for lang, names
                        in test_lang2name.items()}
-
+    
     test_label_mapper = get_mapper(lang2test_paths, sense_inventory)
     lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, inventory_dir=inventory_dir)
-
     test_dss = {lang: [get_allen_datasets(None,
                                           encoder_name, lemma2synsets,
                                           label_vocab, test_label_mapper, config["data"]["max_segments_in_batch"],
                                           {lang: [tp]}, force_reload=True, serialize=False,
-                                          device = torch.device(device)) for tp in test_paths]
+                                          device = torch.device(device), pos=test_pos) for tp in test_paths]
                 for lang, test_paths in lang2test_paths.items()}
 
     metric = WSDF1(label_vocab, mfs_dictionary is not None, mfs_dictionary)
@@ -239,6 +247,8 @@ if __name__ == "__main__":
     # parser.add_argument("--test_path", default=None, nargs="+")
     # parser.add_argument("--find_best", action="store_true", default=False)
     # parser.add_argument("--dev_set", default=None, type=str)
+
+    parser.add_argument("--pos", default=None)
     parser.add_argument("--verbose", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--cpu", action="store_true", default=False)
