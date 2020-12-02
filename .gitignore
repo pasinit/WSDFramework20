@@ -15,7 +15,6 @@ data2/models
 data2
 data_bkp
 data3
-data/
 config/
 venv
 data4
@@ -28,7 +27,7 @@ data5
 sample_en
 sweep.i97op0ma.txt
 sweep.*
-data
 lightning_logs
 multimodal_wsd
 to_send
+data1
