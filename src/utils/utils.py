@@ -1,5 +1,9 @@
+<<<<<<< HEAD
+from allennlp.data.token_indexers import PretrainedBertIndexer
+=======
 from allennlp.data import Vocabulary
 from allennlp.data.token_indexers import PretrainedTransformerIndexer
+>>>>>>> 32a924e15249d69a96f5699c4f7ceaac30f41ae5
 
 from src.misc.wsdlogging import get_info_logger
 from src.models import POSSIBLE_MODELS
@@ -32,6 +36,29 @@ def get_model(model_config, out_size, pad_token_id, label_pad_token_id, metric=N
 def get_token_indexer(model_name):
     if model_name.lower() == "nhs":
         model_name = "bert-base-multilingual-cased"
+<<<<<<< HEAD
+    if model_name.startswith("bert-"):
+        return PretrainedBertIndexer(
+            pretrained_model=model_name,
+            do_lowercase=False,
+            truncate_long_sequences=False
+        ), 0
+    if model_name.startswith("xlm-"):
+        indexer = PretrainedXLMIndexer(
+            pretrained_model=model_name,
+            do_lowercase=False,
+            truncate_long_sequences=False
+        )
+        return indexer, indexer.padding()
+    if model_name.startswith("roberta-"):
+        indexer = PretrainedRoBERTaIndexer(
+            pretrained_model=model_name,
+            do_lowercase=False,
+            truncate_long_sequences=False
+        )
+        return indexer, indexer.padding()
+    raise RuntimeError("Unknown model name: {}, cannot instanciate any indexer".format(model_name))
+=======
     indexer = PretrainedTransformerIndexer(
         model_name=model_name,
     )
@@ -55,3 +82,4 @@ if __name__ == "__main__":
     pytorch_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(pytorch_total_params)
     print(pytorch_trainable_params)
+>>>>>>> 32a924e15249d69a96f5699c4f7ceaac30f41ae5

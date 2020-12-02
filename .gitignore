@@ -15,6 +15,8 @@ data2/models
 data2
 data_bkp
 data3
+data/
+config/
 venv
 data4
 logs
