@@ -1,0 +1,10 @@
+numpy
+pyyaml
+torch
+wandb
+allennlp==1.0.0
+transformers==2.11.0
+lxml
+pandas
+tabulate
+wandb

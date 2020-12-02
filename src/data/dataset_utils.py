@@ -1,13 +1,23 @@
+import hashlib
+import logging
 from collections import Counter
-from typing import Dict, Any
+from typing import Dict, Tuple, Union, List, Set
 
 import torch
-from allennlp_mods.callbacks import OutputWriter
-from data_io.data_utils import Lemma2Synsets
-from data_io.datasets import LabelVocabulary, AllenWSDDatasetReader
-import logging
+import os
+import _pickle as pkl
+from allennlp.data import Vocabulary
+from allennlp.data.dataset_readers.dataset_reader import AllennlpDataset
+from allennlp.data.token_indexers import PretrainedTransformerMismatchedIndexer
+from allennlp.nn.util import move_to_device
+from nlp_tools.allen_data.iterators import get_bucket_iterator
+from nlp_tools.allennlp_training_callbacks.callbacks import OutputWriter
+from nlp_tools.data_io.data_utils import Lemma2Synsets, MultilingualLemma2Synsets
+from nlp_tools.data_io.datasets import LabelVocabulary, WSDDataset
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+from src.misc.wsdlogging import get_info_logger
+
+logger = get_info_logger(__name__)  # pylint: disable=invalid-name
 
 WORDNET_DICT_PATH = "/opt/WordNet-3.0/dict/index.sense"
 
@@ -24,26 +34,31 @@ def offsets_from_wn_sense_index():
             golds = lemmapos2gold.get(lexeme, set())
             golds.add(offset)
             lemmapos2gold[lexeme] = golds
-    return Lemma2Synsets(data=lemmapos2gold)
+    return MultilingualLemma2Synsets(**{"en": lemmapos2gold})
 
 
-def from_bn_mapping(langs=("en"), sense_inventory=None, **kwargs):
-    reliable = True
-    # if sense_inventory is not None and "bnoffsets" in sense_inventory:
-    #     reliable = "bnoffsets_reliable" == sense_inventory
-    lemmapos2gold = dict()
+def from_bn_mapping(langs=("en"), **kwargs):
+    lang2inventory = dict()
+    if "inventory_dir" in kwargs and kwargs["inventory_dir"] is not None:
+        inventory_dir = kwargs.pop("inventory_dir")
+    else:
+        inventory_dir ="resources/evaluation_framework_3.0/inventories/"
     for lang in langs:
-        with open("resources/lexeme_to_synsets/lexeme2synsets.reliable_sources.{}.txt".format(lang)) as lines:
+        lemmapos2gold = dict()
+        with open(os.path.join(inventory_dir, "inventory.{}.withgold.txt".format(lang))) as lines:
             for line in lines:
                 fields = line.strip().lower().split("\t")
                 if len(fields) < 2:
                     continue
-                lemmapos = fields[0]
+                lemma, pos = fields[0].split("#")
+                pos = get_simplified_pos(pos)
+                lemmapos = lemma + "#" + pos  # + "#" + lang
                 synsets = fields[1:]
                 old_synsets = lemmapos2gold.get(lemmapos, set())
                 old_synsets.update(synsets)
                 lemmapos2gold[lemmapos] = old_synsets
-    return Lemma2Synsets(data=lemmapos2gold)
+        lang2inventory[lang] = lemmapos2gold
+    return MultilingualLemma2Synsets(**lang2inventory)
 
 
 def sensekey_from_wn_sense_index():
@@ -57,7 +72,7 @@ def sensekey_from_wn_sense_index():
             golds = lemmapos2gold.get(lexeme, set())
             golds.add(key)
             lemmapos2gold[lexeme] = golds
-    return Lemma2Synsets(data=lemmapos2gold)
+    return MultilingualLemma2Synsets(**{"en": lemmapos2gold})
 
 
 def load_bn_offset2bnid_map(path):
@@ -174,7 +189,7 @@ def get_label_mapper(target_inventory, labels):
         elif target_inventory == "sensekeys":
             return get_wnoffset2wnkeys()
         return None
-    elif label_type == "sensekeys" is not None:
+    elif label_type == "sensekeys":
         if target_inventory == "bnoffsets":
             return get_wnkeys2bnoffset()
         elif target_inventory == "wnoffsets":
@@ -190,33 +205,6 @@ def get_label_mapper(target_inventory, labels):
             raise RuntimeError("Cannot infer label type from {}".format(label_type))
 
 
-def get_dataset_with_labels_from_data(indexers: Dict[str, Any], training_data_xmls, sliding_window=32,
-                                      max_sentence_token=64, gold_id_separator=" ", sense_inventory="babelnet",
-                                      mfs_file=None,
-                                      **kwargs):
-    labels = set()
-    lemma2synsetslist = list()
-    for xml_path in training_data_xmls:
-        gold_path = xml_path.replace("data.xml", "gold.key.txt")
-        lemma2synsetslist.append(Lemma2Synsets.from_corpus_xml(xml_path))
-        vocab = vocabulary_from_gold_key_file(gold_path)
-        labels.update(vocab.stoi.keys())
-    key_mapper = get_label_mapper(sense_inventory, labels)
-    labels = list([list(key_mapper.get(x, {x}))[0] if key_mapper is not None else x for x in labels])
-    labels = sorted(labels)
-    label_vocab = LabelVocabulary(Counter(labels), specials=["<pad>", "<unk>"])
-    lemma2classes = dict()
-    for l2s in lemma2synsetslist:
-        for lemma, synsets in l2s.items():
-            all_classes = lemma2classes.get(lemma, set())
-            all_classes.update(
-                [label_vocab.get_idx(y) for x in synsets for y in (key_mapper.get(x, [x]) if key_mapper else [x])])
-            lemma2classes[lemma] = all_classes
-    lemma2classes = Lemma2Synsets(data=lemma2classes)
-    return get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
-                                             label_vocab, lemma2classes, mfs_file, sense_inventory, **kwargs)
-
-
 def get_mfs_vocab(mfs_file):
     if mfs_file is None:
         return None
@@ -230,25 +218,118 @@ def get_mfs_vocab(mfs_file):
     return mfs
 
 
-def get_dataset(indexers: Dict[str, Any], sliding_window, max_sentence_token, gold_id_separator,
-                label_vocab, lemma2synsets, mfs_file, sense_inventory, **kwargs):
-    reader = AllenWSDDatasetReader(sense_inventory, None, indexers, label_vocab=label_vocab,
-                                   lemma2synsets=lemma2synsets,
-                                   max_sentence_len=max_sentence_token,
-                                   sliding_window_size=sliding_window,
-                                   # key2goldid=gold_mapper,
-                                   gold_key_id_separator=gold_id_separator, **kwargs)
-    if label_vocab is None:
-        label_vocab = reader.label_vocab
-    mfs_vocab = get_mfs_vocab(mfs_file)
-    return reader, lemma2synsets, label_vocab, mfs_vocab
+def get_allen_datasets(cached_dataset_file_name: str,
+                       encoder_name: str,
+                       lemma2synsets: MultilingualLemma2Synsets,
+                       label_vocab: LabelVocabulary,
+                       label_mapper: Dict,
+                       max_segments_in_batch: int,
+                       lang2paths: Dict[str, List[str]],
+                       force_reload: bool,
+                       serialize=True,
+                       is_trainingset=True,
+                       device=torch.device("cuda"),
+                       pos=None):
+    # if not force_reload and os.path.exists(os.path.join(".cache/", cached_dataset_file_name)):
+    #     logger.info("Loading datasetset from cache: {}".format(os.path.join(".cache/", cached_dataset_file_name)))
+    #     logger.info(lang2paths)
+    #     with open(os.path.join(".cache/", cached_dataset_file_name), "rb") as reader:
+    #         training_iterator, training_ds = pkl.load(reader)
+    # else:
+    training_ds = get_dataset(encoder_name, lang2paths, lemma2synsets, label_mapper, label_vocab, pos=pos)
+    training_ds.index_with(Vocabulary())
+    training_iterator = get_bucket_iterator(training_ds, max_segments_in_batch, is_trainingset=is_trainingset,
+                                            device=device)
+    # if serialize:
+    #     with open(os.path.join(".cache/", cached_dataset_file_name), "wb") as writer:
+    #         pkl.dump((training_iterator, training_ds), writer)
+    return training_ds, training_iterator
 
 
-def get_wnoffsets_dataset(indexers: Dict[str, Any], sliding_window=32, max_sentence_token=64,
-                          gold_id_separator=" ", langs=None, mfs_file=None,
-                          **kwargs):
-    # if langs is not None:
-    #     logger.warning("the argument langs: {} is ignored by this method.".format(",".join(langs)))
+def get_dataset(encoder_name: str,
+                paths: Dict[str, List[str]],
+                lemma2synsets: MultilingualLemma2Synsets,
+                label_mapper: Dict[str, str],
+                label_vocab: LabelVocabulary, pos:Union[None, Set]=None) \
+        -> AllennlpDataset:
+    indexer = PretrainedTransformerMismatchedIndexer(encoder_name)
+    dataset = WSDDataset(paths, lemma2synsets=lemma2synsets, label_mapper=label_mapper,
+                         indexer=indexer, label_vocab=label_vocab, pos=pos)
+    return dataset
+
+
+def get_dev_dataset(dev_lang, dev_name, test_dss: Dict[str,List[str]], test_names):
+    dev_ds = None,None
+    if dev_name is not None:
+        lang_dss = test_dss[dev_lang]
+        names = test_names[dev_lang]
+        if lang_dss is None:
+            return None,None
+        try:
+            dev_index = names.index(dev_name)
+            dev_ds = lang_dss[dev_index]
+        except:
+            return None,None
+    return dev_ds
+
+
+def get_test_datasets(dataset_builder, encoder_name, label_mapper, langs, mfs_file, test_paths):
+    get_cached_dataset_file_name(*test_paths, encoder_name)
+    test_dss = [dataset_builder(encoder_name, t, label_mapper, langs, mfs_file)[0] for t in test_paths]
+    for td in test_dss:
+        td.index_with(Vocabulary())
+    return test_dss
+
+
+def build_outpath_subdirs(path):
+    if not os.path.exists(path):
+        os.mkdir(path)
+    try:
+        os.mkdir(os.path.join(path, "checkpoints"))
+    except:
+        pass
+    try:
+        os.mkdir(os.path.join(path, "predictions"))
+    except:
+        pass
+
+
+def get_data(sense_inventory, langs, mfs_file, **kwargs) -> Tuple[MultilingualLemma2Synsets, Dict, LabelVocabulary]:
+    if sense_inventory == "wnoffsets":
+        getter = get_wnoffsets_data
+    elif sense_inventory == "sensekeys":
+        getter = get_sensekey_data
+    elif sense_inventory == "bnoffsets":
+        getter = get_bnoffsets_data
+    else:
+        raise RuntimeError(
+            "%s sense_inventory has not been recognised, ensure it is one of the following: {wnoffsets, sensekeys, bnoffsets}" % (
+                sense_inventory))
+    return getter(langs, mfs_file, **kwargs)
+
+
+def get_mapper(training_paths, sense_inventory):
+    paths = [p for v in training_paths.values() for p in v]
+    all_labels = list()
+    for f in paths:
+        with open(f.replace(".data.xml", ".gold.key.txt")) as reader:
+            all_labels.extend([l.split(" ")[1] for l in reader if len(l.strip()) > 0])
+    label_mapper = get_label_mapper(target_inventory=sense_inventory, labels=all_labels)
+    if label_mapper is not None and len(label_mapper) > 0: ## handles the case when training set has a key set and test sets h
+        for k, v in list(label_mapper.items()):
+            for x in v:
+                label_mapper[x] = [x]
+    return label_mapper
+
+
+def get_cached_dataset_file_name(*args):
+    m = hashlib.sha256()
+    for arg in args:
+        m.update(bytes(str(arg), 'utf8'))
+    return m.hexdigest()
+
+
+def get_wnoffsets_data(langs, mfs_file=None, **kwargs) -> Tuple[MultilingualLemma2Synsets, Dict, LabelVocabulary]:
     label_vocab = wnoffset_vocabulary()
     lemma2synsets = offsets_from_wn_sense_index()
     if langs is not None:
@@ -266,33 +347,35 @@ def get_wnoffsets_dataset(indexers: Dict[str, Any], sliding_window=32, max_sente
 
     for key, synsets in lemma2synsets.items():
         lemma2synsets[key] = [label_vocab.get_idx(l) for l in synsets]
-    # key_mapper = AllenWSDDatasetReader.get_label_mapper("wnoffset", label_vocab.stoi.keys())
-    return get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
-                                             label_vocab, lemma2synsets, mfs_file, **kwargs)
+    mfs_vocab = get_mfs_vocab(mfs_file)
+
+    return lemma2synsets, mfs_vocab, label_vocab
 
 
-def get_bnoffsets_dataset(indexers: Dict[str, Any], sliding_window=32, max_sentence_token=64,
-                          gold_id_separator=" ", langs=("en"), mfs_file=None, **kwargs):
+def get_bnoffsets_data(langs=("en"), mfs_file=None, **kwargs) -> Tuple[MultilingualLemma2Synsets, Dict, LabelVocabulary]:
     lemma2synsets = from_bn_mapping(langs, **kwargs)
     label_vocab = bnoffset_vocabulary()
-    for key, synsets in lemma2synsets.items():
-        lemma2synsets[key] = [label_vocab.get_idx(l) for l in synsets]
-    # key_mapper = AllenWSDDatasetReader.get_label_mapper("babelnet", label_vocab.stoi.keys())
-    return get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
-                                             label_vocab, lemma2synsets, mfs_file, **kwargs)
+    for lang in langs:
+        inventory = lemma2synsets.get_inventory(lang)
+        for key, synsets in inventory.items():
+            inventory[key] = [label_vocab.get_idx(l) for l in synsets]
+    mfs_vocab = get_mfs_vocab(mfs_file)
+    return lemma2synsets, mfs_vocab, label_vocab
 
 
-def get_sensekey_dataset(indexers: Dict[str, Any], sliding_window=32, max_sentence_token=64, gold_id_separator=" ",
-                         langs=None, mfs_file=None, **kwargs):
+def get_sensekey_data(label_mapper, langs=None, mfs_file=None, **kwargs) \
+        -> Tuple[Lemma2Synsets, Dict, LabelVocabulary]:
     if langs is not None:
         logger.warning(
             "[get_sensekey_dataset]: the argument langs: {} is ignored by this method.".format(",".join(langs)))
-    lemma2synsets = sensekey_from_wn_sense_index()
+
     label_vocab = wn_sensekey_vocabulary()
+    lemma2synsets = sensekey_from_wn_sense_index()
     for key, synsets in lemma2synsets.items():
-        lemma2synsets[key] = [label_vocab.get_idx(l) for l in synsets]
-    return get_dataset(indexers, sliding_window, max_sentence_token, gold_id_separator,
-                                             label_vocab, lemma2synsets, mfs_file, **kwargs)
+        lemma2synsets[key] = [label_mapper.get_idx(l) for l in synsets]
+    mfs_vocab = get_mfs_vocab(mfs_file)
+
+    return lemma2synsets, mfs_vocab, label_vocab
 
 
 class Config(dict):
@@ -405,9 +488,9 @@ def get_simplified_pos(long_pos):
     long_pos = long_pos.lower()
     if long_pos.startswith("n") or long_pos.startswith("propn"):
         return "n"
-    elif long_pos.startswith("adj") or long_pos.startswith("j"):
+    elif long_pos.startswith("adj") or long_pos.startswith("j") or long_pos == "a":
         return "a"
-    elif long_pos.startswith("adv") or long_pos.startswith("r"):
+    elif long_pos.startswith("adv") or long_pos.startswith("r") or long_pos == "r":
         return "r"
     elif long_pos.startswith("v"):
         return "v"

@@ -21,7 +21,7 @@ data:
 
 
 model:
-  device: cuda 
+  device: cpu 
   model_name: bert-base-multilingual-cased
   learning_rate: 1e-4
 
