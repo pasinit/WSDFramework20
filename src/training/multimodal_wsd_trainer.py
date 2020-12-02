@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(LEVEL)
 ch = logging.StreamHandler()
 ch.setLevel(LEVEL)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
@@ -41,8 +42,9 @@ class MultimodalWSDFinetuner(pl.LightningModule):
         if self.global_step < self.steps_without_images:
             batch["visual_pos"] = torch.zeros_like(batch["visual_pos"])
             batch["visual_feats"] = torch.zeros_like(batch["visual_feats"])
-            batch["visual_attention_mask"] = torch.zeros_like(batch["visual_attention_mask"])
-            batch["visual_attention_mask"][:,0] = 1
+            batch["visual_attention_mask"] = torch.zeros_like(
+                batch["visual_attention_mask"])
+            batch["visual_attention_mask"][:, 0] = 1
         elif self.global_step == self.steps_without_images:
             logger.info("images are now provided")
         outputs = self(batch)
@@ -77,7 +79,8 @@ class MultimodalWSDFinetuner(pl.LightningModule):
         if len(dev_golds) == len(all_answers):
             # print(all_answers)
             # print(dev_golds)
-            accuracy = evaluate_answers.evaluate(all_answers, dev_golds, None, None, self.dev_name)
+            accuracy = evaluate_answers.evaluate(
+                all_answers, dev_golds, None, None, self.dev_name)
             self.log('val_accuracy', accuracy)
 
     def validation_step(self, batch, batch_idx):
@@ -130,18 +133,17 @@ class TrainingParams(dict):
 if __name__ == "__main__":
     encoder_name = "unc-nlp/lxmert-base-uncased"
     sense_vocab_size = 206941
-    finetune_encoder = False
+    finetune_encoder = True
     epochs = 50
-    batch_accumulation = 8
+    batch_accumulation = 16
     batch_size = 4
-    lr = 1e-5
+    lr = 5e-6
     params = TrainingParams()
     params["batch_size"] = batch_size
     params["lr"] = lr
     params["batch_accumulation"] = batch_accumulation
-    params["steps_without_images"] = 10000
+    params["steps_without_images"] = 0
     encoder_tokenizer = LxmertTokenizerFast.from_pretrained(encoder_name)
-
 
     semcor_path = "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml"
     dev_path = "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007.data.xml"
@@ -171,19 +173,21 @@ if __name__ == "__main__":
                                        dev_path, dev_tokid2imgid_path, img_features_files,
                                        wordnet_sense_index_path)
 
-    model = MultimodalWSDModel(sense_vocab_size, encoder_name, finetune_encoder=finetune_encoder)
+    model = MultimodalWSDModel(
+        sense_vocab_size, encoder_name, finetune_encoder=finetune_encoder)
     wandb_logger = WandbLogger("lxmert_wsd",
                                project="multimodal_wsd",
                                offline=False,
                                log_model=True,
                                save_dir="data4/")
-    trainer = pl.Trainer(gpus=1, precision=16, max_epochs=epochs,
+    trainer = pl.Trainer(gpus=0, precision=32, max_epochs=epochs,
                          accumulate_grad_batches=batch_accumulation,
-                         logger=[wandb_logger])  # , limit_val_batches=0.1)
+                         logger=[wandb_logger],
+                         num_sanity_val_steps=0,
+                         )  # , limit_val_batches=0.1)
 
     finetuner = MultimodalWSDFinetuner(model, dataset, dev_dataset, params, "semeval2007",
                                        steps_without_images=params.steps_without_images)
-
 
     logger.info(pformat(params))
     trainer.fit(finetuner)
