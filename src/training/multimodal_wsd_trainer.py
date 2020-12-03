@@ -1,5 +1,6 @@
 import logging
 from pprint import pprint, pformat
+from src.models.generic_transformer_wsd_model import TransformerWSDModel
 
 import numpy as np
 import pytorch_lightning as pl
@@ -7,6 +8,8 @@ import torch
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data.dataloader import DataLoader
 from transformers import LxmertTokenizerFast
+from transformers.modeling_auto import AutoModel
+from transformers.tokenization_bert import BertTokenizerFast
 
 from src.data.multimodal_dataset import MultimodalTxtDataset
 from src.evaluation import evaluate_answers
@@ -45,8 +48,6 @@ class MultimodalWSDFinetuner(pl.LightningModule):
             batch["visual_attention_mask"] = torch.zeros_like(
                 batch["visual_attention_mask"])
             batch["visual_attention_mask"][:, 0] = 1
-        elif self.global_step == self.steps_without_images:
-            logger.info("images are now provided")
         outputs = self(batch)
         self.log("train_loss", outputs[0])
         return outputs[0]
@@ -54,9 +55,6 @@ class MultimodalWSDFinetuner(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         all_answers = dict()
         for _, b_logits, b_i_choices, b_choices, b_labels_mask, b_ids in outputs:
-            # logits = b_logits.contiguous().view(-1, b_logits.shape[-1])
-            # labels_mask = b_labels_mask.contiguous().view(-1).unsqueeze(-1)
-            # logits = logits.masked_select(labels_mask).view(len(b_choices), -1)
             b_choices = [list(x) for x in b_choices]
             choice_mask = torch.zeros_like(b_logits) - 1e9
             for i, x in enumerate(b_choices):
@@ -67,8 +65,7 @@ class MultimodalWSDFinetuner(pl.LightningModule):
             b_ids = [x.split("_")[-1] for x in b_ids]
             dev_answers = dict(zip(b_ids, predictions))
             all_answers.update(dev_answers)
-        # print("OPENING FILE", self.dev_name)
-        dev_golds = evaluate_answers.parse_file(self.dev_path)
+        dev_golds = evaluate_answers.parse_file(self.dev_path, self.dev_dataset.sense2offset)
         with open(self.dev_name, "w") as writer:
             for b_id, pred in all_answers.items():
                 if len(b_id.split("_")) > 1:
@@ -81,7 +78,8 @@ class MultimodalWSDFinetuner(pl.LightningModule):
             # print(dev_golds)
             accuracy = evaluate_answers.evaluate(
                 all_answers, dev_golds, None, None, self.dev_name)
-            self.log('val_accuracy', accuracy)
+            self.log('val_accuracy', accuracy, prog_bar=True)
+            
 
     def validation_step(self, batch, batch_idx):
         outputs = self(batch)
@@ -99,11 +97,13 @@ class MultimodalWSDFinetuner(pl.LightningModule):
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.hparams.batch_size,
-                          collate_fn=self.train_dataset.get_batch_fun(), num_workers=0)
+                          collate_fn=self.train_dataset.get_batch_fun(), num_workers=0, 
+                          shuffle=True)
 
     def val_dataloader(self):
         return DataLoader(self.dev_dataset, batch_size=self.hparams.batch_size,
-                          collate_fn=self.dev_dataset.get_batch_fun(), num_workers=0)
+                          collate_fn=self.dev_dataset.get_batch_fun(), 
+                          num_workers=0)
 
 
 class TrainingParams(dict):
@@ -131,59 +131,52 @@ class TrainingParams(dict):
 
 
 if __name__ == "__main__":
-    encoder_name = "unc-nlp/lxmert-base-uncased"
-    sense_vocab_size = 206941
-    finetune_encoder = True
+    encoder_name = "bert-base-cased"#"unc-nlp/lxmert-base-uncased"
+    # sense_vocab_size = 206941
+    finetune_encoder = False
     epochs = 50
     batch_accumulation = 16
     batch_size = 4
-    lr = 5e-6
+    lr = 2e-5
     params = TrainingParams()
     params["batch_size"] = batch_size
     params["lr"] = lr
     params["batch_accumulation"] = batch_accumulation
     params["steps_without_images"] = 0
-    encoder_tokenizer = LxmertTokenizerFast.from_pretrained(encoder_name)
-
-    semcor_path = "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml"
-    dev_path = "/home/tommaso/Documents/data/WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007.data.xml"
+    encoder_tokenizer = BertTokenizerFast.from_pretrained(encoder_name)
+    semcor_path = "data/training_data/en_training_data/semcor/semcor.data.xml"
+    dev_path = "resources/evaluation_framework_3.0/new_evaluation_datasets/dev-en/dev-en.data.xml"
     wordnet_sense_index_path = "/opt/WordNet-3.0/dict/index.sense"
 
-    # train_tokid2imgid_path = "data2/training_data/multimodal/tok2image.semcor.restricted.txt"
-    train_tokid2imgid_path = "/home/tommaso/dev/PycharmProjects/multimodal_wsd_bianca/data/in/wsd/semcor_sentence_image_map.txt"
-    dev_tokid2imgid_path = "/home/tommaso/dev/PycharmProjects/multimodal_wsd_bianca/data/in/wsd/semeval2007_sentence_image_map.txt"
+    train_tokid2imgid_path = "data/in/wsd/semcor_sentence_image_map.txt"
+    dev_tokid2imgid_path = "data/in/wsd/semeval2007_sentence_image_map.txt"
 
-    # imgfeat_path = "data2/training_data/multimodal/img.gcc.semcor.new.npz"
-    imgfeat_path = "/home/tommaso/dev/PycharmProjects/multimodal_wsd_bianca/data/in/wsd/wsd_gcc_images.npz"
-
-    # dev_tokid2imgid_path = "data2/training_data/multimodal/tok2image.semeval2007.restricted.txt"
-    # dev_imgfeat_path = "data2/training_data/multimodal/img.gcc.semeval2007.other.npz"
+    imgfeat_path = "data/in/wsd/wsd_gcc_images.npz"
 
     img_features_files = np.load(imgfeat_path)
-    # print("loading image features")
-    # img_features = img_features_files["features"]
-    # print("image features loaded")
-    # all_img_boxes = img_features_files["normalized_boxes"]
 
     dataset = MultimodalTxtDataset(encoder_tokenizer,
                                    semcor_path, train_tokid2imgid_path, img_features_files,
                                    wordnet_sense_index_path)
-
     dev_dataset = MultimodalTxtDataset(encoder_tokenizer,
                                        dev_path, dev_tokid2imgid_path, img_features_files,
-                                       wordnet_sense_index_path)
+                                       wordnet_sense_index_path,
+                                       inventory=dataset.inventory,
+                                       class2sense = dataset.class2sense,
+                                       sense2class = dataset.sense2class,
+                                       sense2offset = dataset.sense2offset)
 
-    model = MultimodalWSDModel(
-        sense_vocab_size, encoder_name, finetune_encoder=finetune_encoder)
-    wandb_logger = WandbLogger("lxmert_wsd",
+    model = TransformerWSDModel(encoder_name, dataset.inventory_size, finetune_encoder)
+    wandb_logger = WandbLogger(encoder_name+"_wsd",
                                project="multimodal_wsd",
                                offline=False,
                                log_model=True,
-                               save_dir="data4/")
-    trainer = pl.Trainer(gpus=0, precision=32, max_epochs=epochs,
+                               save_dir="data/",
+                               entity="research")
+    trainer = pl.Trainer(gpus=1, precision=16, max_epochs=epochs,
                          accumulate_grad_batches=batch_accumulation,
                          logger=[wandb_logger],
-                         num_sanity_val_steps=0,
+                         num_sanity_val_steps=0
                          )  # , limit_val_batches=0.1)
 
     finetuner = MultimodalWSDFinetuner(model, dataset, dev_dataset, params, "semeval2007",
