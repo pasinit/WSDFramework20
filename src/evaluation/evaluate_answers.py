@@ -21,12 +21,14 @@ def get_pos_from_key(key):
         return "ADV"
 
 
-def parse_file(path):
+def parse_file(path, mapping=None):
     id2ans = dict()
     with open(path) as lines:
         for line in lines:
             fields = line.strip().split(" ")
             id, *answers = fields
+            if mapping is not None:
+                answers = [mapping[x] for x in answers]
             id2ans[id] = set(answers)
     return id2ans
 

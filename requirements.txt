@@ -7,4 +7,5 @@ transformers==3.3.1
 lxml
 pandas
 tabulate
+git+https://github.com/pasinit/nlp_tools.git
 wandb

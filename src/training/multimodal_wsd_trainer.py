@@ -1,6 +1,8 @@
 import logging
 from pprint import pprint, pformat
 import os
+from src.models.generic_transformer_wsd_model import TransformerWSDModel
+
 import numpy as np
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
@@ -8,6 +10,10 @@ import torch
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data.dataloader import DataLoader
 from transformers import AutoTokenizer
+from transformers import LxmertTokenizerFast
+from transformers.modeling_auto import AutoModel
+from transformers.tokenization_bert import BertTokenizerFast
+
 from src.data.multimodal_dataset import MultimodalTxtDataset
 from src.evaluation import evaluate_answers
 from src.models.multimodal_wsd_model import BertCrossAttentionWSDModel, BertFusionWSDModel, MultimodalWSDModel
@@ -211,7 +217,6 @@ if __name__ == "__main__":
                                    semcor_path,
                                    train_tokid2imgid_path, img_features_files,
                                    wordnet_sense_index_path)
-
     dev_dataset = MultimodalTxtDataset(encoder_tokenizer,
                                        dev_path, dev_tokid2imgid_path, img_features_files,
                                        wordnet_sense_index_path)
