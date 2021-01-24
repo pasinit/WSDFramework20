@@ -109,6 +109,7 @@ class MultimodalTxtDataset(Dataset):
         self.dataset_id = hashlib.md5(bytes(dataset_id, "utf8")).hexdigest()
         self.dataset_cached_path = os.path.join(CACHE_DIR, self.dataset_id)
         if os.path.exists(self.dataset_cached_path) and use_cache:
+            print("found CACHE", self.dataset_cached_path)
             with open(self.dataset_cached_path, "rb") as reader:
                 self.examples = pkl.load(reader)
                 logger.info("dataset loaded from cache {}".format(self.dataset_cached_path))
@@ -133,14 +134,17 @@ class MultimodalTxtDataset(Dataset):
         logger.info("loading images' features")
         all_img_features, all_img_boxes = img_features_files["features"], img_features_files["normalized_boxes"]
         logger.info("images' features loaded")
-        # img_features_files = np.load(img_features_path)
 
         img_ids = img_features_files["image_ids"]
         sentenceid2imgid = read_imgid_index(sentenceid_2_imgid_path)
         img2arrindex = get_imgid_2_arrindex(img_ids)
+        ids_not_found = set()
         for example in examples:
             example_id = example["sentence_id"]
-            img_idx = img2arrindex.get(sentenceid2imgid[example_id], None)
+            imgid = sentenceid2imgid.get(example_id, None)
+            if imgid is None:
+                ids_not_found.add(example_id)
+            img_idx = img2arrindex.get(imgid, None)
             if img_idx is None:
                 example["img_boxes"] = fake_pos,
                 example["img_features"] = fake_features
@@ -149,7 +153,7 @@ class MultimodalTxtDataset(Dataset):
             img_features, img_boxes = all_img_features[img_idx], all_img_boxes[img_idx]
             example["img_boxes"] = img_boxes
             example["img_features"] = img_features
-
+        print(len(ids_not_found), "ids not found.")
     def load_xml(self, path, id2golds, tokenizer):
         root = etree.parse(path).getroot()
         corpus_name = root.attrib["source"]

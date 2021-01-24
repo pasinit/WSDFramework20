@@ -3,7 +3,7 @@ import lxml.etree as etree
 from lxml.etree import iterparse
 from tqdm import tqdm
 
-from src.data.dataset_utils import get_pos_from_key, get_universal_pos, get_simplified_pos
+from src.data.dataset_utils import get_pos_from_key, get_universal_pos, get_simplified_pos, get_wnkeys2bnoffset
 
 def filter_instances(corpus_root, lemmas):
     ids_to_keep = set()
@@ -128,21 +128,6 @@ def lexical_sample2semeval2013_format(input_xml, output_xml, corpus_name, **kwar
 import os
 
 
-# def fix_onesec(data_root_xml, lang):
-#     parser = iterparse(os.path.join(data_root_xml, "onesec.{}.all.data.xml".format(lang)), events=["start"],
-#                        tag="text")
-#     with open(os.path.join(data_root_xml, "onesec.{}.all.fix.data.xml".format(lang)), "w") as writer:
-#         writer.write("<?xml version='1.0' encoding='utf-8'?>\n")
-#         writer.write('<corpus lang="{}" source="onesec">\n'.format(lang))
-#         for event, element in parser:
-#             for sentence in element:
-#                 for token in sentence:
-#                     if token.tag == "instance":
-#                         fields = token.text.split("/")
-#                         token.text = fields[0]
-#                         token.attrib["lemma"] = fields[1]
-#             writer.write(str(etree.tostring(element, pretty_print=True, encoding="utf8"), "utf-8"))
-#         writer.write("</corpus>")
 
 
 def load_gold_keys(path):
@@ -154,25 +139,6 @@ def load_gold_keys(path):
     return iid2gold
 
 
-# def fix_onesec_text(onesec_path, output_path, lang):
-#     text_element: etree.Element = None
-#     bar = tqdm()
-#     with open(output_path, "w") as writer:
-#         writer.write("<?xml version='1.0' encoding='utf-8'?>\n")
-#         writer.write('<corpus lang="{}" source="onesec">\n'.format(lang))
-#         for event, element in iterparse(onesec_path, tag="text", events=["start"]):
-#             if text_element is None:
-#                 text_element = element
-#             else:
-#                 element_id = element.attrib["id"]
-#                 if element_id == text_element.attrib["id"]:
-#                     text_element.extend([x for x in element])
-#                 else:
-#                     bar.update(1)
-#                     writer.write(str(etree.tostring(text_element, pretty_print=True, encoding="utf8"), "utf-8"))
-#                     writer.flush()
-#                     del text_element
-#                     text_element = element
 
 def fix_onesec_en():
     data_xml_path = "data/training_data/en_training_data/onesec_original_data/onesec_testset_instances/OneSeC_EN.data.xml"
@@ -301,6 +267,17 @@ def wn2bnkeys():
             fields = line.strip().split(" ")
             bns = sensekey2bn[fields[1]]
             writer.write(fields[0] + " " + " ".join(bns) + "\n")
+
+def convert_keys(gold_path, out_path):
+    wnkey2bn = get_wnkeys2bnoffset()
+    with open(gold_path) as lines, open(out_path, "w") as writer:
+        for line in lines:
+            fields = line.strip().split()
+            tokenid, *sensekeys = fields
+            bnids = [bn for sensekey in sensekeys for bn in wnkey2bn[sensekey.replace("%5", "%3")]]
+            writer.write("{} {}\n".format(tokenid, " ".join(bnids)))
+    
+
 
 
 if __name__ == "__main__":

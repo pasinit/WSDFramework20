@@ -99,7 +99,8 @@ def main(args):
     outpath = os.path.join(outpath, wsd_model_name + "_" + encoder_name.replace("/", "_"))
     build_outpath_subdirs(outpath)
 
-    lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, mfs_file, invetory_dir=inventory_dir)
+    lemma2synsets, mfs_dictionary, label_vocab = get_data(sense_inventory, langs, 
+    mfs_file, invetory_dir=inventory_dir)
     train_label_mapper = get_mapper(training_paths, sense_inventory)
 
     train_cached_dataset_file_name = get_cached_dataset_file_name([model_config[x] for x in ["encoder_name",

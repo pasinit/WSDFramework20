@@ -1,8 +1,24 @@
 from argparse import ArgumentParser
 from collections import Counter
-
-from src.data.dataset_utils import get_pos_from_key
+from pprint import pprint
 import os
+
+
+def get_pos_from_key(key):
+    """
+    assumes key is in the wordnet key format, i.e., 's_gravenhage%1:15:00:
+    :param key: wordnet key
+    :return: pos tag corresponding to the key
+    """
+    numpos = key.split("%")[-1][0]
+    if numpos == "1":
+        return "NOUN"
+    elif numpos == "2":
+        return "VERB"
+    elif numpos == "3" or numpos == "5":
+        return "ADJ"
+    else:
+        return "ADV"
 
 
 def parse_file(path):
@@ -15,9 +31,14 @@ def parse_file(path):
     return id2ans
 
 
+def get_extended_pos(char_pos):
+    return "NOUN" if char_pos == "n" else "VERB" if char_pos == "v" \
+        else "ADJ" if char_pos == "a" else "ADV"
+
+
 def get_pos(label):
     if label.startswith("bn:") or label.startswith("wn:"):
-        return label[-1]
+        return get_extended_pos(label[-1])
     return get_pos_from_key(label)
 
 
@@ -32,7 +53,7 @@ def get_bn_labels(labels, wnkey2bn):
     return bn_labels
 
 
-def evaluate(answers, golds, by_pos, wnkey2bn, dataset):
+def evaluate(answers, golds, by_pos, wnkey2bn=None):
     correct = 0
     tot = 0
     correct_by_pos = Counter()
@@ -51,45 +72,32 @@ def evaluate(answers, golds, by_pos, wnkey2bn, dataset):
         tot += 1
         tot_by_pos[pos] += 1
     accuracy = correct / tot
-    # print("F1:", accuracy)
-    results = []
+    results = {}
     if by_pos:
-        for p in "n,v,a,r".split(","):
+        for p in "NOUN,VERB,ADJ,ADV".split(","):
             p_tot = tot_by_pos[p]
             p_cor = correct_by_pos[p]
             if p_tot > 0:
-                results.append(p_cor / p_tot)
-            else:
-                results.append(-1.0)
-            # print("{} F1: {}".format(p.upper(), p_cor / p_tot))
-    #print(dataset + "\t" + "\t".join(["{:.4}".format(x * 100) for x in [accuracy] + results]))
-    return accuracy
+                results[p] = p_cor / p_tot
+
+    results["ALL"] = accuracy
+    return results
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--answer_dir", required=True)
-    parser.add_argument("--gold_dir", required=True)
+    parser.add_argument("--answer_file", required=True)
+    parser.add_argument("--gold_file", required=True)
     parser.add_argument("--by_pos", action="store_true", default=False)
 
     args = parser.parse_args()
-    all_bn_wn_keys_file = "/home/tommaso/dev/PycharmProjects/WSDframework/resources/mappings/all_bn_wn_keys.txt"
-    wnkey2bn = dict()
-    with open(all_bn_wn_keys_file) as lines:
-        for line in lines:
-            fields = line.strip().split("\t")
-            bnid = fields[0]
-            wnkeys = fields[1:]
-            for wnkey in wnkeys:
-                wnkey2bn[wnkey] = bnid
-    print("all\tn\tv\ta\tr".upper())
 
-    for dataset in "test-en,test-en-coarse,test-en-no-sem10-no-sem07,dev-en,test-it,dev-it,test-es,dev-es,test-fr,dev-fr,test-de,dev-de,test-zh,dev-zh,test-gl,dev-gl,test-hr,\
-dev-hr,test-da,dev-da,test-et,dev-et,test-ja,dev-ja,test-hu,dev-hu,test-bg,dev-bg,test-eu,dev-eu,test-ca,dev-ca,test-ko,\
-dev-ko,test-sl,dev-sl,test-nl,dev-nl".split(","):
-        answer_file = os.path.join(args.answer_dir, dataset + ".predictions.txt")
-        gold_file = os.path.join(args.gold_dir, dataset, dataset + ".gold.key.txt")
-        by_pos = args.by_pos
+    answer_file = args.answer_file
+    gold_file = args.gold_file
+    by_pos = args.by_pos
 
-        id2answer = parse_file(answer_file)
-        id2gold = parse_file(gold_file)
-        evaluate(id2answer, id2gold, by_pos, wnkey2bn, dataset)
+    id2answer = parse_file(answer_file)
+    id2gold = parse_file(gold_file)
+    results = evaluate(id2answer, id2gold, by_pos)
+    for k, v in results.items():
+        print(k, v)
