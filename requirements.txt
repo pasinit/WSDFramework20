@@ -3,7 +3,7 @@ pyyaml
 torch
 wandb
 allennlp==1.0.0
-transformers==3.3.1
+transformers==4.30.0
 lxml
 pandas
 tabulate
